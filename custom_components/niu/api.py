@@ -216,7 +216,7 @@ class NiuApi:
         self.dataTrackInfo = self.post_info_track(TRACK_LIST_API_URI)
 
     def ignition(self, ignition):
-        return self.post_ignition(IGNITION_URI, {"ignition": ignition})
+        return self.post_ignition(IGNITION_URI, ignition)
 
 
 """class NiuDataBridge(object):
