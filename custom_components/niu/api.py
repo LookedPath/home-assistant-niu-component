@@ -134,7 +134,6 @@ class NiuApi:
         if ignition is "true":
             ignitionParam = "acc_on"
         try:
-            _LOGGER.error("Ignition: " + ignition)
             _LOGGER.error("Ignition Param: " + ignitionParam)
             _LOGGER.error("URL: " + url)
             _LOGGER.error("sn: " + sn)
