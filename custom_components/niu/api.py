@@ -131,13 +131,14 @@ class NiuApi:
             "user-agent": "manager/5.5.8 (android; SM-S918B 14);lang=en-US;clientIdentifier=Overseas;timezone=Europe/Rome;model=samsung_SM-S918B;deviceName=SM-S918B;ostype=android"
             }
         ignitionParam = "acc_off"
-        if ignition:
+        if ignition is "true":
             ignitionParam = "acc_on"
         try:
-            _LOGGER.error("Ignition: " + ignitionParam)
+            _LOGGER.error("Ignition: " + ignition)
+            _LOGGER.error("Ignition Param: " + ignitionParam)
             _LOGGER.error("URL: " + url)
-            _LOGGER.error("Ignition: " + ignitionParam)
             _LOGGER.error("sn: " + sn)
+            _LOGGER.error("headers: " + str(headers))
             r = requests.post(url, headers=headers, params=params, json={"sn": sn, "type": ignitionParam})
         except ConnectionError:
             return False

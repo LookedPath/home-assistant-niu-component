@@ -44,6 +44,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await hass.async_add_executor_job(api.initApi)
         _LOGGER.error("After await")
         hass.async_add_executor_job(api.ignition(ignition))
+        
     hass.services.async_register(DOMAIN, "set_scooter_ignition", ignitionService)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
