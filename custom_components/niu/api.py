@@ -6,8 +6,11 @@ import json
 from time import gmtime, strftime
 
 import requests
+import logging
 
 from .const import *
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class NiuApi:
@@ -127,6 +130,9 @@ class NiuApi:
         if ignition:
             ignitionParam = "acc_on"
         try:
+            _LOGGER.error("Ignition: " + ignitionParam)
+            _LOGGER.error("URL: " + url)
+            _LOGGER.error("Ignition: " + ignitionParam)
             r = requests.post(url, headers=headers, params=params, data={"sn": sn, "type": ignitionParam})
         except ConnectionError:
             return False
