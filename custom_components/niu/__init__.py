@@ -5,6 +5,7 @@ import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from .api import NiuApi
 
 from .const import CONF_AUTH, CONF_SENSORS, DOMAIN
 
