@@ -125,7 +125,11 @@ class NiuApi:
         sn, token = self.sn, self.token
         url = API_BASE_URL + path
         params = {}
-        headers = {"token": token, "Accept-Language": "en-US"}
+        headers = {
+            "token": token,
+            "Accept-Language": "en-US",
+            "user-agent": "manager/5.5.8 (android; SM-S918B 14);lang=en-US;clientIdentifier=Overseas;timezone=Europe/Rome;model=samsung_SM-S918B;deviceName=SM-S918B;ostype=android"
+            }
         ignitionParam = "acc_off"
         if ignition:
             ignitionParam = "acc_on"
