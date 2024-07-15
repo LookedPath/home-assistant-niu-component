@@ -81,7 +81,7 @@ class NiuApi:
         params = {"sn": sn}
         headers = {
             "token": token,
-            "user-agent": "manager/4.10.4 (android; IN2020 11);lang=zh-CN;clientIdentifier=Domestic;timezone=Asia/Shanghai;model=IN2020;deviceName=IN2020;ostype=android",
+            "user-agent": "manager/5.5.8 (android; SM-S918B 14);lang=en-US;clientIdentifier=Overseas;timezone=Europe/Rome;model=samsung_SM-S918B;deviceName=SM-S918B;ostype=android",
         }
         try:
             r = requests.get(url, headers=headers, params=params)
