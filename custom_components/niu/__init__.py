@@ -42,7 +42,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ignition = call.data.get("ignition")
         scooterId = call.data.get("scooterId")
         _LOGGER.error("Before gettoken")
-        token = get_token(username=username, password=password)
+        token = get_token(username, password)
         _LOGGER.error("After gettoken")
         api_uri = MOTOINFO_LIST_API_URI
         _LOGGER.error("Before sn")
@@ -83,7 +83,7 @@ def get_token(username, password):
         try:
             r = requests.post(url, data=data)
         except BaseException as e:
-            print(e)
+            _LOGGER.error(e)
             return False
         data = json.loads(r.content.decode())
         return data["data"]["token"]["access_token"]
