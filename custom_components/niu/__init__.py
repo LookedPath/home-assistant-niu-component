@@ -34,12 +34,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         PLATFORMS.append("camera")
 
     
-    def ignitionService(call):
+    async def ignitionService(call):
         username = niu_auth[CONF_USERNAME]
         password = niu_auth[CONF_PASSWORD]
         ignition = call.data.get("ignition")
         scooterId = call.data.get("scooterId")
         api = NiuApi(username, password, scooterId)
+        await hass.async_add_executor_job(api.initApi)
         api.ignition(ignition)
     hass.services.async_register(DOMAIN, "niu_set_scooter_ignition", ignitionService)
 
