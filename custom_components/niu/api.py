@@ -113,6 +113,29 @@ class NiuApi:
         if data["status"] != 0:
             return False
         return data
+    
+    def post_ignition(
+        self,
+        path,
+        ignition,
+    ):
+        sn, token = self.sn, self.token
+        url = API_BASE_URL + path
+        params = {}
+        headers = {"token": token, "Accept-Language": "en-US"}
+        ignitionParam = "acc_off"
+        if ignition:
+            ignitionParam = "acc_on"
+        try:
+            r = requests.post(url, headers=headers, params=params, data={"sn": sn, "type": ignitionParam})
+        except ConnectionError:
+            return False
+        if r.status_code != 200:
+            return False
+        data = json.loads(r.content.decode())
+        if data["status"] != 0:
+            return False
+        return True
 
     def post_info_track(self, path):
         sn, token = self.sn, self.token
@@ -179,6 +202,9 @@ class NiuApi:
 
     def updateTrackInfo(self):
         self.dataTrackInfo = self.post_info_track(TRACK_LIST_API_URI)
+
+    def ignition(self, ignition):
+        return self.post_ignition(IGNITION_URI, {"ignition": ignition})
 
 
 """class NiuDataBridge(object):

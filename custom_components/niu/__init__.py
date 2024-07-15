@@ -8,6 +8,8 @@ from homeassistant.core import HomeAssistant
 
 from .const import CONF_AUTH, CONF_SENSORS, DOMAIN
 
+
+
 _LOGGER = logging.getLogger(__name__)
 
 # TODO List the platforms that you want to support.
@@ -29,6 +31,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if "LastTrackThumb" in sensors_selected:
         PLATFORMS.append("camera")
+
+    
+    def ignitionService(call):
+        username = niu_auth[CONF_USERNAME]
+        password = niu_auth[CONF_PASSWORD]
+        ignition = call.data.get("ignition")
+        scooterId = call.data.get("scooterId")
+        api = NiuApi(username, password, scooterId)
+        api.ignition(ignition)
+    hass.services.async_register(DOMAIN, "ignition", ignitionService)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

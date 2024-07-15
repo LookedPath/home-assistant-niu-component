@@ -1,0 +1,12 @@
+ignitionService:
+  fields:
+    scooterId:
+      description: The scooter ID
+      required: true
+      example: 0
+      default: 0
+    ignition:
+      description: The ignition state
+      required: true
+      example: true
+      default: false
