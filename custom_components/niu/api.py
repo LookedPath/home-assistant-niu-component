@@ -139,6 +139,7 @@ class NiuApi:
             return False
         if r.status_code != 200:
             return False
+        _LOGGER.error("data: " + r.content.decode())
         data = json.loads(r.content.decode())
         if data["status"] != 0:
             return False
