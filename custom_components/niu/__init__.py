@@ -41,7 +41,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         scooterId = call.data.get("scooterId")
         api = NiuApi(username, password, scooterId)
         api.ignition(ignition)
-    hass.services.async_register(DOMAIN, "ignition", ignitionService)
+    hass.services.async_register(DOMAIN, "niu_set_scooter_ignition", ignitionService)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

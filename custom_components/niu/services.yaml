@@ -1,4 +1,4 @@
-ignitionService:
+niu_set_scooter_ignition:
   fields:
     scooterId:
       description: The scooter ID
