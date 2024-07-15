@@ -1,12 +1,13 @@
-niu_set_scooter_ignition:
+set_scooter_ignition:
+  name: Set NIU Scooter Ignition
   fields:
     scooterId:
       description: The scooter ID
-      required: true
+      required: True
       example: 0
       default: 0
     ignition:
       description: The ignition state
-      required: true
-      example: true
-      default: false
+      required: True
+      example: True
+      default: False
