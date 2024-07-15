@@ -133,6 +133,7 @@ class NiuApi:
             _LOGGER.error("Ignition: " + ignitionParam)
             _LOGGER.error("URL: " + url)
             _LOGGER.error("Ignition: " + ignitionParam)
+            _LOGGER.error("sn: " + sn)
             r = requests.post(url, headers=headers, params=params, data={"sn": sn, "type": ignitionParam})
         except ConnectionError:
             return False
