@@ -133,7 +133,7 @@ class NiuApi:
             "User-Agent": "manager/5.5.8 (android; SM-S918B 14);lang=en-US;clientIdentifier=Overseas;timezone=Europe/Rome;model=samsung_SM-S918B;deviceName=SM-S918B;ostype=android"
             }
         ignitionParam = "acc_off"
-        if ignition is "true":
+        if ignition == True:
             ignitionParam = "acc_on"
         try:
             _LOGGER.error("Ignition Param: " + ignitionParam)
@@ -145,9 +145,8 @@ class NiuApi:
             return False
         if r.status_code != 200:
             return False
-        _LOGGER.error("data: " + r.content.decode())
         data = json.loads(r.content.decode())
-        if data["status"] != 0:
+        if data["desc"] != "成功":
             return False
         return True
 
