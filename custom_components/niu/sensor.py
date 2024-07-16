@@ -126,7 +126,7 @@ class NiuSensor(Entity):
         if self._sensor_grp == SENSOR_TYPE_MOTO and self._id_name == "isConnected":
             return {
                 "bmsId": self._api.getDataBat("bmsId"),
-                "ignition": self._api.getDataMoto("ignition"),
+                "ignition": self._api.getDataMoto("isAccOn"),
                 "latitude": self._api.getDataPos("lat"),
                 "longitude": self._api.getDataPos("lng"),
                 "gsm": self._api.getDataMoto("gsm"),
