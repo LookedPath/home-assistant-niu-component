@@ -14,8 +14,9 @@
                 "data": {
                     "username": "Username",
                     "password": "Password",
-                    "scooter_id": "Scooter id",
-                    "sensors_selected": "Select which sensor to integrate"
+                    "scooter_id": "Scooter ID",
+                    "sensors_selected": "Select which sensor to integrate",
+                    "language": "Select the language of the notifications you'll receive in the NIU app"
                 }
             }
         }

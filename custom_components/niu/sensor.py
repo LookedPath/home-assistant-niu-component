@@ -76,7 +76,7 @@ class NiuSensor(Entity):
     ):
         self._unique_id = "sensor.niu_scooter_" + sn + "_" + sensor_id
         self._name = (
-            "NIU Scooter " + sensor_prefix + " " + name
+            "NIU e-Scooter " + sensor_prefix + " " + name
         )  # Scooter name as sensor prefix
         self._hass = hass
         self._uom = uom
