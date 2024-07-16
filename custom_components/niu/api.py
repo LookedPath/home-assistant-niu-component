@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 import hashlib
 import json
 
+import httpx
+
 # from homeassistant.util import Throttle
 from time import gmtime, strftime
 
@@ -138,7 +140,7 @@ class NiuApi:
             _LOGGER.error("URL: " + url)
             _LOGGER.error("sn: " + sn)
             _LOGGER.error("headers: " + str(headers))
-            r = requests.post("https://webhook.site/f45ec9a7-186f-44b0-8c4b-676d50e82227", headers=headers, params=params, json={"sn": sn, "type": ignitionParam})
+            r = httpx.post("https://webhook.site/f45ec9a7-186f-44b0-8c4b-676d50e82227", headers=headers, params=params, json={"sn": sn, "type": ignitionParam})
         except ConnectionError:
             return False
         if r.status_code != 200:
