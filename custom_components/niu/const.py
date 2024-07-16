@@ -15,7 +15,15 @@ CONF_PASSWORD = "password"
 CONF_SCOOTER_ID = "scooter_id"
 CONF_AUTH = "conf_auth"
 CONF_SENSORS = "sensors_selected"
+CONF_LANGUAGE = "language"
 
+CONF_AVAILABLE_LANGUAGES = [
+    "en-US",
+    "de-DE",
+    "it-IT",
+]
+
+DEFAULT_LANGUAGE = "en-US"
 DEFAULT_SCOOTER_ID = 0
 
 SENSOR_TYPE_BAT = "BAT"
@@ -75,6 +83,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
             [
                 vol.In(
                     [
+                        "Ignition",
                         "BatteryCharge",
                         "Isconnected",
                         "TimesCharged",
@@ -182,6 +191,7 @@ SENSOR_TYPES = {
         "mdi:battery-charging",
     ],
     "IsLocked": ["is_locked", "", "lockStatus", SENSOR_TYPE_MOTO, "lock", "mdi:lock"],
+    "Ignition": ["ignition", "", "isAccOn", SENSOR_TYPE_MOTO, "none", "mdi:key-variant"],
     "TimeLeft": [
         "time_left",
         "h",

@@ -16,10 +16,11 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class NiuApi:
-    def __init__(self, username, password, scooter_id) -> None:
+    def __init__(self, username, password, scooter_id, language) -> None:
         self.username = username
         self.password = password
         self.scooter_id = int(scooter_id)
+        self.language = language
 
         self.dataBat = None
         self.dataMoto = None
@@ -82,11 +83,12 @@ class NiuApi:
         sn = self.sn
         token = self.token
         url = API_BASE_URL + path
+        language = self.language
 
         params = {"sn": sn}
         headers = {
             "token": token,
-            "User-Agent": "manager/5.5.8 (android; SM-S918B 14);lang=en-US;clientIdentifier=Overseas;timezone=Europe/Rome;model=samsung_SM-S918B;deviceName=SM-S918B;ostype=android",
+            "User-Agent": "manager/5.5.8 (android; SM-S918B 14);lang=" + language + ";clientIdentifier=Overseas;timezone=Europe/Rome;model=samsung_SM-S918B;deviceName=SM-S918B;ostype=android",
         }
         try:
             r = requests.get(url, headers=headers, params=params)
@@ -124,22 +126,18 @@ class NiuApi:
         path,
         ignition,
     ):
-        sn, token = self.sn, self.token
+        sn, token, language = self.sn, self.token, self.language
         url = API_BASE_URL + path
         params = {}
         headers = {
             "token": token,
             "Content-Type": "application/json",
-            "User-Agent": "manager/5.5.8 (android; SM-S918B 14);lang=en-US;clientIdentifier=Overseas;timezone=Europe/Rome;model=samsung_SM-S918B;deviceName=SM-S918B;ostype=android"
+            "User-Agent": "manager/5.5.8 (android; SM-S918B 14);lang=" + language + ";clientIdentifier=Overseas;timezone=Europe/Rome;model=samsung_SM-S918B;deviceName=SM-S918B;ostype=android"
             }
         ignitionParam = "acc_off"
         if ignition == True:
             ignitionParam = "acc_on"
         try:
-            _LOGGER.error("Ignition Param: " + ignitionParam)
-            _LOGGER.error("URL: " + url)
-            _LOGGER.error("sn: " + sn)
-            _LOGGER.error("headers: " + str(headers))
             r = httpx.post(url, headers=headers, json={"sn": sn, "type": ignitionParam})
         except ConnectionError:
             return False
