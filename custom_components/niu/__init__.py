@@ -19,7 +19,7 @@ PLATFORMS = ["sensor"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Niu Smart Plug from a config entry."""
+    """Set up NIU e-Scooter Integration from a config entry."""
 
     niu_auth = entry.data.get(CONF_AUTH, None)
     if niu_auth == None:

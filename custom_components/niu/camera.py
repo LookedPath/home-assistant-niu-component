@@ -68,11 +68,11 @@ class LastTrackCamera(GenericCamera):
 
     @property
     def device_info(self):
-        device_name = "Niu E-scooter"
+        device_name = "NIU e-Scooter"
         dev = {
             "identifiers": {("niu", device_name)},
             "name": device_name,
-            "manufacturer": "Niu",
+            "manufacturer": "NIU",
             "model": 1.0,
         }
         return dev
