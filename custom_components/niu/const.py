@@ -35,6 +35,7 @@ SENSOR_TYPE_POS = "POSITION"
 SENSOR_TYPE_TRACK = "TRACK"
 
 AVAILABLE_SENSORS = [
+    "Ignition",
     "BatteryCharge",
     "Isconnected",
     "TimesCharged",
