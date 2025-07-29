@@ -33,6 +33,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if "LastTrackThumb" in sensors_selected:
         PLATFORMS.append("camera")
 
+    # Store a reference to the entry for the API instances
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = entry
+
     
     async def ignitionService(call):
         username = niu_auth[CONF_USERNAME]
@@ -40,7 +44,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         language = niu_auth[CONF_LANGUAGE]
         ignition = call.data.get("ignition")
         scooterId = call.data.get("scooterId")
-        api = NiuApi(username, password, scooterId, language)
+        api = NiuApi(username, password, scooterId, language, hass, entry)
         await hass.async_add_executor_job(api.initApi)
         api.ignition(ignition)
         

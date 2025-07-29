@@ -30,7 +30,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     scooter_id = niu_auth[CONF_SCOOTER_ID]
     language = niu_auth[CONF_LANGUAGE]
 
-    api = NiuApi(username, password, scooter_id, language)
+    api = NiuApi(username, password, scooter_id, language, hass, entry)
     await hass.async_add_executor_job(api.initApi)
 
     camera_name = api.sensor_prefix + " Last Track Camera"

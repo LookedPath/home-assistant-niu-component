@@ -16,6 +16,7 @@ CONF_SCOOTER_ID = "scooter_id"
 CONF_AUTH = "conf_auth"
 CONF_SENSORS = "sensors_selected"
 CONF_LANGUAGE = "language"
+CONF_TOKEN_DATA = "token_data"
 
 CONF_AVAILABLE_LANGUAGES = [
     "en-US",

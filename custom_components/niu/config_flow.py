@@ -50,6 +50,7 @@ class NiuAuthenticator:
         self.language = language
 
     async def authenticate(self, hass):
+        # For authentication testing, we don't need token storage
         api = NiuApi(self.username, self.password, self.scooter_id, self.language)
         try:
             token = await hass.async_add_executor_job(api.get_token)
