@@ -1,7 +1,8 @@
 """
-    Support for Niu Scooters by Marcel Westra.
-    Asynchronous version implementation by Giovanni P. (@pikka97)
+Support for Niu Scooters by Marcel Westra.
+Asynchronous version implementation by Giovanni P. (@pikka97)
 """
+
 from datetime import timedelta
 import logging
 
@@ -18,7 +19,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     niu_auth = entry.data.get(CONF_AUTH, None)
     if niu_auth == None:
         _LOGGER.error(
-            "The authenticator of your Niu integration is None.. can not setup the integration..."
+            "The authenticator of your NIU integration is None.. can not setup the integration..."
         )
         return False
 
@@ -26,9 +27,14 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     password = niu_auth[CONF_PASSWORD]
     scooter_id = niu_auth[CONF_SCOOTER_ID]
     sensors_selected = niu_auth[CONF_SENSORS]
+    language = niu_auth[CONF_LANGUAGE]
 
-    api = NiuApi(username, password, scooter_id)
+    api = NiuApi(username, password, scooter_id, language, hass, entry)
     await hass.async_add_executor_job(api.initApi)
+
+    # Save token if a new one was generated during initialization
+    if api.has_unsaved_token():
+        await api.async_save_token()
 
     # add sensors
     devices = []
@@ -75,7 +81,7 @@ class NiuSensor(Entity):
     ):
         self._unique_id = "sensor.niu_scooter_" + sn + "_" + sensor_id
         self._name = (
-            "NIU Scooter " + sensor_prefix + " " + name
+            "NIU e-Scooter " + sensor_prefix + " " + name
         )  # Scooter name as sensor prefix
         self._hass = hass
         self._uom = uom
@@ -112,12 +118,12 @@ class NiuSensor(Entity):
 
     @property
     def device_info(self):
-        device_name = "Niu E-scooter"
         return {
-            "identifiers": {("niu", device_name)},
-            "name": device_name,
-            "manufacturer": "Niu",
-            "model": 1.0,
+            "identifiers": {(DOMAIN, self._api.sn)},
+            "name": self._api.sensor_prefix,
+            "manufacturer": "NIU",
+            "model": "Electric Scooter",
+            "sw_version": "1.0",
         }
 
     @property
@@ -125,6 +131,7 @@ class NiuSensor(Entity):
         if self._sensor_grp == SENSOR_TYPE_MOTO and self._id_name == "isConnected":
             return {
                 "bmsId": self._api.getDataBat("bmsId"),
+                "ignition": self._api.getDataMoto("isAccOn"),
                 "latitude": self._api.getDataPos("lat"),
                 "longitude": self._api.getDataPos("lng"),
                 "gsm": self._api.getDataMoto("gsm"),
@@ -161,3 +168,7 @@ class NiuSensor(Entity):
         elif self._sensor_grp == SENSOR_TYPE_TRACK:
             await self._hass.async_add_executor_job(self._api.updateTrackInfo)
             self._state = self._api.getDataTrack(self._id_name)
+
+        # Save token if it was refreshed during the update
+        if self._api.has_unsaved_token():
+            await self._api.async_save_token()

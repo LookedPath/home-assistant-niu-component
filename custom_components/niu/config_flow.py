@@ -23,6 +23,13 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_USERNAME): str,
         vol.Required(CONF_PASSWORD): str,
         vol.Required(CONF_SCOOTER_ID, default=DEFAULT_SCOOTER_ID): int,
+        vol.Required(CONF_LANGUAGE, default=DEFAULT_LANGUAGE): selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=CONF_AVAILABLE_LANGUAGES,
+                multiple=False,
+                mode=selector.SelectSelectorMode.LIST,
+            ),
+        ),
         vol.Required(CONF_SENSORS, default=AVAILABLE_SENSORS): selector.SelectSelector(
             selector.SelectSelectorConfig(
                 options=AVAILABLE_SENSORS,
@@ -35,14 +42,16 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 
 
 class NiuAuthenticator:
-    def __init__(self, username, password, scooter_id, sensors_selected) -> None:
+    def __init__(self, username, password, scooter_id, sensors_selected, language) -> None:
         self.username = username
         self.password = password
         self.scooter_id = scooter_id
         self.sensors_selected = sensors_selected
+        self.language = language
 
     async def authenticate(self, hass):
-        api = NiuApi(self.username, self.password, self.scooter_id)
+        # For authentication testing, we don't need token storage
+        api = NiuApi(self.username, self.password, self.scooter_id, self.language)
         try:
             token = await hass.async_add_executor_job(api.get_token)
             if isinstance(token, bool):
@@ -63,7 +72,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Invoked when a user clicks the add button"""
 
-        integration_title = "Niu EScooter Integration"
+        integration_title = "NIU e-Scooter Integration"
         errors = {}
 
         if user_input != None:
@@ -71,8 +80,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             password = user_input[CONF_PASSWORD]
             scooter_id = user_input[CONF_SCOOTER_ID]
             sensors_selected = user_input[CONF_SENSORS]
+            language = user_input[CONF_LANGUAGE]
             niu_auth = NiuAuthenticator(
-                username, password, scooter_id, sensors_selected
+                username, password, scooter_id, sensors_selected, language
             )
             auth_result = await niu_auth.authenticate(self.hass)
             if auth_result:

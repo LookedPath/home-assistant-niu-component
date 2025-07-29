@@ -1,28 +1,48 @@
 from datetime import datetime, timedelta
 import hashlib
 import json
+import time
+
+import httpx
 
 # from homeassistant.util import Throttle
 from time import gmtime, strftime
 
 import requests
+import logging
 
 from .const import *
 
+_LOGGER = logging.getLogger(__name__)
+
 
 class NiuApi:
-    def __init__(self, username, password, scooter_id) -> None:
+    def __init__(self, username, password, scooter_id, language, hass=None, entry=None) -> None:
         self.username = username
         self.password = password
         self.scooter_id = int(scooter_id)
+        self.language = language
+        self.hass = hass
+        self.entry = entry
 
         self.dataBat = None
         self.dataMoto = None
         self.dataMotoInfo = None
         self.dataTrackInfo = None
+        
+        # Token management
+        self.token = None
+        self.token_expires_at = None
 
     def initApi(self):
-        self.token = self.get_token()
+        # Load stored token if available
+        self._load_stored_token()
+        
+        # Get or refresh token
+        if not self._is_token_valid():
+            self.token = self.get_token()
+            # Don't save token here - will be saved from main thread
+        
         api_uri = MOTOINFO_LIST_API_URI
         self.sn = self.get_vehicles_info(api_uri)["data"]["items"][self.scooter_id][
             "sn_id"
@@ -51,14 +71,93 @@ class NiuApi:
         try:
             r = requests.post(url, data=data)
         except BaseException as e:
-            print(e)
+            _LOGGER.error(f"Error getting token: {e}")
             return False
-        data = json.loads(r.content.decode())
-        return data["data"]["token"]["access_token"]
+        
+        if r.status_code != 200:
+            _LOGGER.error(f"Token request failed with status code: {r.status_code}")
+            return False
+            
+        try:
+            data = json.loads(r.content.decode())
+            token_data = data["data"]["token"]
+            access_token = token_data["access_token"]
+            
+            # Calculate expiration time (assume 24 hours if not provided)
+            # NIU tokens typically last for 24 hours
+            expires_in = token_data.get("expires_in", 86400)  # Default to 24 hours
+            self.token_expires_at = time.time() + expires_in
+            
+            _LOGGER.debug("Successfully obtained new token")
+            return access_token
+        except (KeyError, json.JSONDecodeError) as e:
+            _LOGGER.error(f"Error parsing token response: {e}")
+            return False
+
+    def _load_stored_token(self):
+        """Load token from Home Assistant config entry."""
+        if self.entry and self.entry.data.get("token_data"):
+            token_data = self.entry.data["token_data"]
+            self.token = token_data.get("access_token")
+            self.token_expires_at = token_data.get("expires_at")
+            _LOGGER.debug("Loaded stored token that expires at %s", self.token_expires_at)
+            
+    async def async_save_token(self):
+        """Async method to save token from main event loop."""
+        if self.hass and self.entry and self.token:
+            token_data = {
+                "access_token": self.token,
+                "expires_at": self.token_expires_at
+            }
+            
+            # Update the config entry with new token data
+            new_data = dict(self.entry.data)
+            new_data["token_data"] = token_data
+            
+            self.hass.config_entries.async_update_entry(
+                self.entry, data=new_data
+            )
+            _LOGGER.debug("Saved token to config entry")
+            
+    def has_unsaved_token(self):
+        """Check if there's a new token that needs to be saved."""
+        if not self.token or not self.hass or not self.entry:
+            return False
+            
+        stored_token_data = self.entry.data.get("token_data", {})
+        stored_token = stored_token_data.get("access_token")
+        
+        return self.token != stored_token
+            
+    def _is_token_valid(self):
+        """Check if the current token is valid and not expired."""
+        if not self.token or not self.token_expires_at:
+            return False
+            
+        # Add 5 minute buffer before expiration
+        buffer_time = 300  # 5 minutes
+        current_time = time.time()
+        
+        return current_time < (self.token_expires_at - buffer_time)
+        
+    def _ensure_valid_token(self):
+        """Ensure we have a valid token, refresh if needed."""
+        if not self._is_token_valid():
+            _LOGGER.info("Token expired or invalid, refreshing...")
+            self.token = self.get_token()
+            if self.token:
+                # Token will be saved from main thread
+                return True
+            else:
+                _LOGGER.error("Failed to refresh token")
+                return False
+        return True
 
     def get_vehicles_info(self, path):
+        if not self._ensure_valid_token():
+            return False
+            
         token = self.token
-
         url = API_BASE_URL + path
         headers = {"token": token}
         try:
@@ -74,14 +173,18 @@ class NiuApi:
         self,
         path,
     ):
+        if not self._ensure_valid_token():
+            return False
+            
         sn = self.sn
         token = self.token
         url = API_BASE_URL + path
+        language = self.language
 
         params = {"sn": sn}
         headers = {
             "token": token,
-            "user-agent": "manager/4.10.4 (android; IN2020 11);lang=zh-CN;clientIdentifier=Domestic;timezone=Asia/Shanghai;model=IN2020;deviceName=IN2020;ostype=android",
+            "User-Agent": "manager/5.5.8 (android; SM-S918B 14);lang=" + language + ";clientIdentifier=Overseas;timezone=Europe/Rome;model=samsung_SM-S918B;deviceName=SM-S918B;ostype=android",
         }
         try:
             r = requests.get(url, headers=headers, params=params)
@@ -99,6 +202,9 @@ class NiuApi:
         self,
         path,
     ):
+        if not self._ensure_valid_token():
+            return False
+            
         sn, token = self.sn, self.token
         url = API_BASE_URL + path
         params = {}
@@ -113,8 +219,41 @@ class NiuApi:
         if data["status"] != 0:
             return False
         return data
+    
+    def post_ignition(
+        self,
+        path,
+        ignition,
+    ):
+        if not self._ensure_valid_token():
+            return False
+            
+        sn, token, language = self.sn, self.token, self.language
+        url = API_BASE_URL + path
+        params = {}
+        headers = {
+            "token": token,
+            "Content-Type": "application/json",
+            "User-Agent": "manager/5.5.8 (android; SM-S918B 14);lang=" + language + ";clientIdentifier=Overseas;timezone=Europe/Rome;model=samsung_SM-S918B;deviceName=SM-S918B;ostype=android"
+            }
+        ignitionParam = "acc_off"
+        if ignition == True:
+            ignitionParam = "acc_on"
+        try:
+            r = httpx.post(url, headers=headers, json={"sn": sn, "type": ignitionParam})
+        except ConnectionError:
+            return False
+        if r.status_code != 200:
+            return False
+        data = json.loads(r.content.decode())
+        if data["desc"] != "成功":
+            return False
+        return True
 
     def post_info_track(self, path):
+        if not self._ensure_valid_token():
+            return False
+            
         sn, token = self.sn, self.token
         url = API_BASE_URL + path
         params = {}
@@ -179,6 +318,9 @@ class NiuApi:
 
     def updateTrackInfo(self):
         self.dataTrackInfo = self.post_info_track(TRACK_LIST_API_URI)
+
+    def setIgnition(self, ignition):
+        return self.post_ignition(IGNITION_URI, ignition)
 
 
 """class NiuDataBridge(object):

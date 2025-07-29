@@ -1,6 +1,7 @@
 """Last Track for Niu Integration integration.
-    Author: Giovanni P. (@pikka97)
+Author: Giovanni P. (@pikka97)
 """
+
 import logging
 from typing import final
 
@@ -28,9 +29,14 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     username = niu_auth[CONF_USERNAME]
     password = niu_auth[CONF_PASSWORD]
     scooter_id = niu_auth[CONF_SCOOTER_ID]
+    language = niu_auth[CONF_LANGUAGE]
 
-    api = NiuApi(username, password, scooter_id)
+    api = NiuApi(username, password, scooter_id, language, hass, entry)
     await hass.async_add_executor_job(api.initApi)
+
+    # Save token if a new one was generated during initialization
+    if api.has_unsaved_token():
+        await api.async_save_token()
 
     camera_name = api.sensor_prefix + " Last Track Camera"
 
@@ -67,12 +73,13 @@ class LastTrackCamera(GenericCamera):
 
     @property
     def device_info(self):
-        device_name = "Niu E-scooter"
+        device_name = "NIU e-Scooter"
         dev = {
-            "identifiers": {("niu", device_name)},
-            "name": device_name,
-            "manufacturer": "Niu",
-            "model": 1.0,
+            "identifiers": {(DOMAIN, self._api.sn)},
+            "name": self._api.sensor_prefix,
+            "manufacturer": "NIU",
+            "model": "Electric Scooter",
+            "sw_version": "1.0",
         }
         return dev
 
