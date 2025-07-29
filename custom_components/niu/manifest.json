@@ -7,13 +7,20 @@
   ],
   "codeowners": [
     "@mwestra",
-    "@pikka97"
+    "@pikka97",
+    "@LookedPath"
   ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/LookedPath/home-assistant-niu-component",
+  "documentation": "https://github.com/marcelwestrahome/home-assistant-niu-component",
+  "hacs": {
+    "branches": [
+      "master",
+      "dev"
+    ]
+  },
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/LookedPath/home-assistant-niu-component/issues",
+  "issue_tracker": "https://github.com/marcelwestrahome/home-assistant-niu-component/issues",
   "requirements": [],
   "version": "2.2.0"
 }
