@@ -28,8 +28,9 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     username = niu_auth[CONF_USERNAME]
     password = niu_auth[CONF_PASSWORD]
     scooter_id = niu_auth[CONF_SCOOTER_ID]
+    language = niu_auth[CONF_LANGUAGE]
 
-    api = NiuApi(username, password, scooter_id)
+    api = NiuApi(username, password, scooter_id, language)
     await hass.async_add_executor_job(api.initApi)
 
     camera_name = api.sensor_prefix + " Last Track Camera"
@@ -67,11 +68,11 @@ class LastTrackCamera(GenericCamera):
 
     @property
     def device_info(self):
-        device_name = "Niu E-scooter"
+        device_name = "NIU e-Scooter"
         dev = {
             "identifiers": {("niu", device_name)},
             "name": device_name,
-            "manufacturer": "Niu",
+            "manufacturer": "NIU",
             "model": 1.0,
         }
         return dev

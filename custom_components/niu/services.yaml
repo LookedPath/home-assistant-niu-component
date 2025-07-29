@@ -1,0 +1,20 @@
+set_scooter_ignition:
+  name: Set NIU Scooter Ignition
+  fields:
+    scooterId:
+      description: The scooter ID
+      required: True
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: "box"
+    ignition:
+      description: The ignition state
+      required: True
+      example: True
+      default: False
+      selector:
+        boolean:

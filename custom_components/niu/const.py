@@ -6,6 +6,7 @@ MOTOR_INDEX_API_URI = "/v5/scooter/motor_data/index_info"
 MOTOINFO_LIST_API_URI = "/v5/scooter/list"
 MOTOINFO_ALL_API_URI = "/motoinfo/overallTally"
 TRACK_LIST_API_URI = "/v5/track/list/v2"
+IGNITION_URI = "/v5/cmd/creat"
 # FIRMWARE_BAS_URL = '/motorota/getfirmwareversion'
 
 DOMAIN = "niu"
@@ -14,7 +15,15 @@ CONF_PASSWORD = "password"
 CONF_SCOOTER_ID = "scooter_id"
 CONF_AUTH = "conf_auth"
 CONF_SENSORS = "sensors_selected"
+CONF_LANGUAGE = "language"
 
+CONF_AVAILABLE_LANGUAGES = [
+    "en-US",
+    "de-DE",
+    "it-IT",
+]
+
+DEFAULT_LANGUAGE = "en-US"
 DEFAULT_SCOOTER_ID = 0
 
 SENSOR_TYPE_BAT = "BAT"
@@ -26,6 +35,7 @@ SENSOR_TYPE_POS = "POSITION"
 SENSOR_TYPE_TRACK = "TRACK"
 
 AVAILABLE_SENSORS = [
+    "Ignition",
     "BatteryCharge",
     "Isconnected",
     "TimesCharged",
@@ -74,6 +84,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
             [
                 vol.In(
                     [
+                        "Ignition",
                         "BatteryCharge",
                         "Isconnected",
                         "TimesCharged",
@@ -181,6 +192,7 @@ SENSOR_TYPES = {
         "mdi:battery-charging",
     ],
     "IsLocked": ["is_locked", "", "lockStatus", SENSOR_TYPE_MOTO, "lock", "mdi:lock"],
+    "Ignition": ["ignition", "", "isAccOn", SENSOR_TYPE_MOTO, "none", "mdi:key-variant"],
     "TimeLeft": [
         "time_left",
         "h",

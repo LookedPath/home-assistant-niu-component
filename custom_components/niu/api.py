@@ -2,19 +2,25 @@ from datetime import datetime, timedelta
 import hashlib
 import json
 
+import httpx
+
 # from homeassistant.util import Throttle
 from time import gmtime, strftime
 
 import requests
+import logging
 
 from .const import *
 
+_LOGGER = logging.getLogger(__name__)
+
 
 class NiuApi:
-    def __init__(self, username, password, scooter_id) -> None:
+    def __init__(self, username, password, scooter_id, language) -> None:
         self.username = username
         self.password = password
         self.scooter_id = int(scooter_id)
+        self.language = language
 
         self.dataBat = None
         self.dataMoto = None
@@ -77,11 +83,12 @@ class NiuApi:
         sn = self.sn
         token = self.token
         url = API_BASE_URL + path
+        language = self.language
 
         params = {"sn": sn}
         headers = {
             "token": token,
-            "user-agent": "manager/4.10.4 (android; IN2020 11);lang=zh-CN;clientIdentifier=Domestic;timezone=Asia/Shanghai;model=IN2020;deviceName=IN2020;ostype=android",
+            "User-Agent": "manager/5.5.8 (android; SM-S918B 14);lang=" + language + ";clientIdentifier=Overseas;timezone=Europe/Rome;model=samsung_SM-S918B;deviceName=SM-S918B;ostype=android",
         }
         try:
             r = requests.get(url, headers=headers, params=params)
@@ -113,6 +120,33 @@ class NiuApi:
         if data["status"] != 0:
             return False
         return data
+    
+    def post_ignition(
+        self,
+        path,
+        ignition,
+    ):
+        sn, token, language = self.sn, self.token, self.language
+        url = API_BASE_URL + path
+        params = {}
+        headers = {
+            "token": token,
+            "Content-Type": "application/json",
+            "User-Agent": "manager/5.5.8 (android; SM-S918B 14);lang=" + language + ";clientIdentifier=Overseas;timezone=Europe/Rome;model=samsung_SM-S918B;deviceName=SM-S918B;ostype=android"
+            }
+        ignitionParam = "acc_off"
+        if ignition == True:
+            ignitionParam = "acc_on"
+        try:
+            r = httpx.post(url, headers=headers, json={"sn": sn, "type": ignitionParam})
+        except ConnectionError:
+            return False
+        if r.status_code != 200:
+            return False
+        data = json.loads(r.content.decode())
+        if data["desc"] != "成功":
+            return False
+        return True
 
     def post_info_track(self, path):
         sn, token = self.sn, self.token
@@ -179,6 +213,9 @@ class NiuApi:
 
     def updateTrackInfo(self):
         self.dataTrackInfo = self.post_info_track(TRACK_LIST_API_URI)
+
+    def ignition(self, ignition):
+        return self.post_ignition(IGNITION_URI, ignition)
 
 
 """class NiuDataBridge(object):

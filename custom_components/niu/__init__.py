@@ -5,8 +5,11 @@ import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from .api import NiuApi
 
-from .const import CONF_AUTH, CONF_SENSORS, DOMAIN
+from .const import CONF_AUTH, CONF_SENSORS, DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_LANGUAGE
+
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -16,7 +19,7 @@ PLATFORMS = ["sensor"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Niu Smart Plug from a config entry."""
+    """Set up NIU e-Scooter Integration from a config entry."""
 
     niu_auth = entry.data.get(CONF_AUTH, None)
     if niu_auth == None:
@@ -29,6 +32,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if "LastTrackThumb" in sensors_selected:
         PLATFORMS.append("camera")
+
+    
+    async def ignitionService(call):
+        username = niu_auth[CONF_USERNAME]
+        password = niu_auth[CONF_PASSWORD]
+        language = niu_auth[CONF_LANGUAGE]
+        ignition = call.data.get("ignition")
+        scooterId = call.data.get("scooterId")
+        api = NiuApi(username, password, scooterId, language)
+        await hass.async_add_executor_job(api.initApi)
+        api.ignition(ignition)
+        
+    hass.services.async_register(DOMAIN, "set_scooter_ignition", ignitionService)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

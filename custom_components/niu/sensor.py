@@ -18,7 +18,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     niu_auth = entry.data.get(CONF_AUTH, None)
     if niu_auth == None:
         _LOGGER.error(
-            "The authenticator of your Niu integration is None.. can not setup the integration..."
+            "The authenticator of your NIU integration is None.. can not setup the integration..."
         )
         return False
 
@@ -26,8 +26,9 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     password = niu_auth[CONF_PASSWORD]
     scooter_id = niu_auth[CONF_SCOOTER_ID]
     sensors_selected = niu_auth[CONF_SENSORS]
+    language = niu_auth[CONF_LANGUAGE]
 
-    api = NiuApi(username, password, scooter_id)
+    api = NiuApi(username, password, scooter_id, language)
     await hass.async_add_executor_job(api.initApi)
 
     # add sensors
@@ -53,7 +54,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         else:
             # Last Track Thumb sensor will be used as camera... now just skip it
             pass
-
+    
     async_add_entities(devices)
     return True
 
@@ -75,7 +76,7 @@ class NiuSensor(Entity):
     ):
         self._unique_id = "sensor.niu_scooter_" + sn + "_" + sensor_id
         self._name = (
-            "NIU Scooter " + sensor_prefix + " " + name
+            "NIU e-Scooter " + sensor_prefix + " " + name
         )  # Scooter name as sensor prefix
         self._hass = hass
         self._uom = uom
@@ -112,11 +113,11 @@ class NiuSensor(Entity):
 
     @property
     def device_info(self):
-        device_name = "Niu E-scooter"
+        device_name = "NIU e-Scooter"
         return {
             "identifiers": {("niu", device_name)},
             "name": device_name,
-            "manufacturer": "Niu",
+            "manufacturer": "NIU",
             "model": 1.0,
         }
 
@@ -125,6 +126,7 @@ class NiuSensor(Entity):
         if self._sensor_grp == SENSOR_TYPE_MOTO and self._id_name == "isConnected":
             return {
                 "bmsId": self._api.getDataBat("bmsId"),
+                "ignition": self._api.getDataMoto("isAccOn"),
                 "latitude": self._api.getDataPos("lat"),
                 "longitude": self._api.getDataPos("lng"),
                 "gsm": self._api.getDataMoto("gsm"),
