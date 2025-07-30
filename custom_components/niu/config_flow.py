@@ -1,6 +1,7 @@
 """Config flow for Niu Integration integration.
-    Author: Giovanni P. (@pikka97)
+Author: Giovanni P. (@pikka97)
 """
+
 from __future__ import annotations
 
 import logging
@@ -42,7 +43,9 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 
 
 class NiuAuthenticator:
-    def __init__(self, username, password, scooter_id, sensors_selected, language) -> None:
+    def __init__(
+        self, username, password, scooter_id, sensors_selected, language
+    ) -> None:
         self.username = username
         self.password = password
         self.scooter_id = scooter_id
@@ -66,6 +69,11 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for CanApp Integration."""
 
     VERSION = 1
+
+    @staticmethod
+    def async_get_options_flow(config_entry):
+        """Get the options flow for this handler."""
+        return OptionsFlowHandler(config_entry)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -95,4 +103,62 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
+        )
+
+
+class OptionsFlowHandler(config_entries.OptionsFlow):
+    """Handle options flow for Niu Integration."""
+
+    def __init__(self, config_entry):
+        """Initialize the options flow."""
+        self.config_entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Manage the options."""
+        if user_input is not None:
+            # Update the config entry data with new sensors and language
+            auth_data = self.config_entry.data[CONF_AUTH].copy()
+            auth_data[CONF_SENSORS] = user_input[CONF_SENSORS]
+            auth_data[CONF_LANGUAGE] = user_input[CONF_LANGUAGE]
+
+            # Update the config entry
+            self.hass.config_entries.async_update_entry(
+                self.config_entry, data={CONF_AUTH: auth_data}
+            )
+
+            return self.async_create_entry(title="", data={})
+
+        # Get current values from config entry
+        current_auth = self.config_entry.data.get(CONF_AUTH, {})
+        current_sensors = current_auth.get(CONF_SENSORS, AVAILABLE_SENSORS)
+        current_language = current_auth.get(CONF_LANGUAGE, DEFAULT_LANGUAGE)
+
+        options_schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_LANGUAGE, default=current_language
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=CONF_AVAILABLE_LANGUAGES,
+                        multiple=False,
+                        mode=selector.SelectSelectorMode.LIST,
+                    ),
+                ),
+                vol.Required(
+                    CONF_SENSORS, default=current_sensors
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=AVAILABLE_SENSORS,
+                        multiple=True,
+                        mode=selector.SelectSelectorMode.LIST,
+                    ),
+                ),
+            }
+        )
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=options_schema,
         )

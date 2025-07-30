@@ -19,6 +19,17 @@
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "sensors_selected": "Select which sensor to integrate",
+          "language": "This will affect the language of the notifications you'll receive in the NIU app"
+        },
+        "title": "Configure NIU Integration Options"
+      }
+    }
+  },
   "entity": {
     "switch": {
       "ignition": {

@@ -16,8 +16,19 @@
                     "password": "Password",
                     "scooter_id": "Scooter ID",
                     "sensors_selected": "Select which sensor to integrate",
-                    "language": "Select the language of the notifications you'll receive in the NIU app"
+                    "language": "This will affect the language of the notifications you'll receive in the NIU app"
                 }
+            }
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "data": {
+                    "sensors_selected": "Select which sensor to integrate",
+                    "language": "This will affect the language of the notifications you'll receive in the NIU app"
+                },
+                "title": "Configure NIU Integration Options"
             }
         }
     },

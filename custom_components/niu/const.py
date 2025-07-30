@@ -19,9 +19,13 @@ CONF_LANGUAGE = "language"
 CONF_TOKEN_DATA = "token_data"
 
 CONF_AVAILABLE_LANGUAGES = [
-    "en-US",
-    "de-DE",
-    "it-IT",
+    {"value": "en-US", "label": "English (US)"},
+    {"value": "de-DE", "label": "Deutsch (Deutschland)"},
+    {"value": "it-IT", "label": "Italiano (Italia)"},
+    {"value": "es-ES", "label": "Español (España)"},
+    {"value": "fr-FR", "label": "Français (France)"},
+    {"value": "nl-NL", "label": "Nederlands (Nederland)"},
+    {"value": "sv-SE", "label": "Svenska (Sverige)"},
 ]
 
 DEFAULT_LANGUAGE = "en-US"
