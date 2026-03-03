@@ -90,7 +90,8 @@ class NiuSensor(Entity):
         self._id_name = id_name  # info field for parsing the URL
         self._sensor_grp = sensor_grp  # info field for choosing the right URL
         self._icon = icon
-        self._state = 0
+        self._state = None
+        self._available = True
 
     @property
     def unique_id(self):
@@ -107,6 +108,10 @@ class NiuSensor(Entity):
     @property
     def icon(self):
         return self._icon
+
+    @property
+    def available(self):
+        return self._available
 
     @property
     def state(self):
@@ -129,6 +134,8 @@ class NiuSensor(Entity):
     @property
     def extra_state_attributes(self):
         if self._sensor_grp == SENSOR_TYPE_MOTO and self._id_name == "isConnected":
+            if not self._api.dataBat or not self._api.dataMoto:
+                return {}
             return {
                 "bmsId": self._api.getDataBat("bmsId"),
                 "ignition": self._api.getDataMoto("isAccOn"),
@@ -147,26 +154,50 @@ class NiuSensor(Entity):
     async def async_update(self):
         if self._sensor_grp == SENSOR_TYPE_BAT:
             await self._hass.async_add_executor_job(self._api.updateBat)
+            if not self._api.dataBat:
+                self._available = False
+                return
+            self._available = True
             self._state = self._api.getDataBat(self._id_name)
 
         elif self._sensor_grp == SENSOR_TYPE_MOTO:
             await self._hass.async_add_executor_job(self._api.updateMoto)
+            if not self._api.dataMoto:
+                self._available = False
+                return
+            self._available = True
             self._state = self._api.getDataMoto(self._id_name)
 
         elif self._sensor_grp == SENSOR_TYPE_POS:
             await self._hass.async_add_executor_job(self._api.updateMoto)
+            if not self._api.dataMoto:
+                self._available = False
+                return
+            self._available = True
             self._state = self._api.getDataPos(self._id_name)
 
         elif self._sensor_grp == SENSOR_TYPE_DIST:
-            await self._hass.async_add_executor_job(self._api.updateBat)
+            await self._hass.async_add_executor_job(self._api.updateMoto)
+            if not self._api.dataMoto:
+                self._available = False
+                return
+            self._available = True
             self._state = self._api.getDataDist(self._id_name)
 
         elif self._sensor_grp == SENSOR_TYPE_OVERALL:
             await self._hass.async_add_executor_job(self._api.updateMotoInfo)
+            if not self._api.dataMotoInfo:
+                self._available = False
+                return
+            self._available = True
             self._state = self._api.getDataOverall(self._id_name)
 
         elif self._sensor_grp == SENSOR_TYPE_TRACK:
             await self._hass.async_add_executor_job(self._api.updateTrackInfo)
+            if not self._api.dataTrackInfo:
+                self._available = False
+                return
+            self._available = True
             self._state = self._api.getDataTrack(self._id_name)
 
         # Save token if it was refreshed during the update
