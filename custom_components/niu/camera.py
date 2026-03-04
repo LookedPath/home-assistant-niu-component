@@ -2,6 +2,7 @@
 Author: Giovanni P. (@pikka97)
 """
 
+import json
 import logging
 from typing import final
 
@@ -99,7 +100,28 @@ class LastTrackCamera(GenericCamera):
                 last_track_url, auth=self._auth, timeout=GET_IMAGE_TIMEOUT
             )
             response.raise_for_status()
-            self._last_image = response.content
+
+            # NIU's overseas thumbnail endpoint sometimes returns HTTP 200
+            # with Content-Type: image/png but a JSON error body like:
+            #   {"data":null,"desc":"img fail","status":200}
+            # Detect this by checking for a JSON-like response body and bail out
+            # gracefully instead of passing garbage bytes to Home Assistant.
+            body = response.content
+            stripped = body.lstrip()
+            if stripped.startswith(b"{") or stripped.startswith(b"["):
+                try:
+                    error_payload = json.loads(body)
+                    _LOGGER.warning(
+                        "NIU thumbnail endpoint returned a JSON error instead of "
+                        "an image (URL: %s): %s",
+                        last_track_url,
+                        error_payload,
+                    )
+                except Exception:
+                    pass
+                return self._last_image  # return last known-good frame
+
+            self._last_image = body
         except httpx.TimeoutException:
             _LOGGER.error("Timeout getting camera image from %s", self._name)
             return self._last_image
