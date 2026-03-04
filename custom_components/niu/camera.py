@@ -45,13 +45,15 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         "name": camera_name,
         "still_image_url": "",
         "stream_source": None,
-        "authentication": "basic",
         "username": None,
         "password": None,
-        "limit_refetch_to_url_change": False,
         "content_type": "image/jpeg",
-        "framerate": 2,
-        "verify_ssl": True,
+        "advanced": {
+            "authentication": "basic",
+            "limit_refetch_to_url_change": False,
+            "framerate": 2,
+            "verify_ssl": True,
+        },
     }
     async_add_entities([LastTrackCamera(hass, api, entry, camera_name, camera_name)])
 
@@ -70,7 +72,7 @@ class LastTrackCamera(GenericCamera):
     @property
     def is_on(self) -> bool:
         """Return true if on."""
-        return self._last_image != b""
+        return self._last_image is not None
 
     @property
     def device_info(self):
@@ -90,9 +92,9 @@ class LastTrackCamera(GenericCamera):
         get_last_track = lambda: self._api.getDataTrack("track_thumb")
         last_track_url = await self.hass.async_add_executor_job(get_last_track)
 
-        if last_track_url == self._last_url and self._previous_image != b"":
+        if last_track_url == self._last_url and self._last_image is not None:
             # The path image is the same as before so the image is the same:
-            return self._previous_image
+            return self._last_image
 
         try:
             async_client = get_async_client(self.hass, verify_ssl=self.verify_ssl)
@@ -130,5 +132,4 @@ class LastTrackCamera(GenericCamera):
             return self._last_image
 
         self._last_url = last_track_url
-        self._previous_image = self._last_image
         return self._last_image
