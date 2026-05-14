@@ -1,5 +1,5 @@
 """Last Track for Niu Integration integration.
-Author: Giovanni P. (@pikka97)
+    Author: Giovanni P. (@pikka97)
 """
 
 import json
@@ -12,7 +12,6 @@ from homeassistant.components.camera import CameraState
 from homeassistant.components.generic.camera import GenericCamera
 from homeassistant.helpers.httpx_client import get_async_client
 
-from .api import NiuApi
 from .const import *
 
 _LOGGER = logging.getLogger(__name__)
@@ -20,28 +19,10 @@ GET_IMAGE_TIMEOUT = 10
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
-    niu_auth = entry.data.get(CONF_AUTH, None)
-    if niu_auth == None:
-        _LOGGER.error(
-            "The authenticator of your Niu integration is None.. can not setup the integration..."
-        )
-        return False
+    coordinator = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
+    camera_name = coordinator.metadata.sensor_prefix + " Last Track Camera"
 
-    username = niu_auth[CONF_USERNAME]
-    password = niu_auth[CONF_PASSWORD]
-    scooter_id = niu_auth[CONF_SCOOTER_ID]
-    language = niu_auth[CONF_LANGUAGE]
-
-    api = NiuApi(username, password, scooter_id, language, hass, entry)
-    await hass.async_add_executor_job(api.initApi)
-
-    # Save token if a new one was generated during initialization
-    if api.has_unsaved_token():
-        await api.async_save_token()
-
-    camera_name = api.sensor_prefix + " Last Track Camera"
-
-    entry = {
+    camera_config = {
         "name": camera_name,
         "still_image_url": "",
         "stream_source": None,
@@ -55,12 +36,24 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
             "verify_ssl": True,
         },
     }
-    async_add_entities([LastTrackCamera(hass, api, entry, camera_name, camera_name)])
+    async_add_entities(
+        [
+            LastTrackCamera(
+                hass,
+                coordinator,
+                camera_config,
+                camera_name,
+                camera_name,
+            )
+        ]
+    )
 
 
 class LastTrackCamera(GenericCamera):
-    def __init__(self, hass, api, device_info, identifier: str, title: str) -> None:
-        self._api = api
+    def __init__(
+        self, hass, coordinator, device_info, identifier: str, title: str
+    ) -> None:
+        self.coordinator = coordinator
         super().__init__(hass, device_info, identifier, title)
 
     @property
@@ -75,25 +68,31 @@ class LastTrackCamera(GenericCamera):
         return self._last_image is not None
 
     @property
+    def available(self) -> bool:
+        """Return camera availability from coordinator state."""
+        return self.coordinator.last_update_success or self._last_image is not None
+
+    @property
     def device_info(self):
-        device_name = "NIU e-Scooter"
-        dev = {
-            "identifiers": {(DOMAIN, self._api.sn)},
-            "name": self._api.sensor_prefix,
+        return {
+            "identifiers": {(DOMAIN, self.coordinator.metadata.sn)},
+            "name": self.coordinator.metadata.sensor_prefix,
             "manufacturer": "NIU",
             "model": "Electric Scooter",
             "sw_version": "1.0",
         }
-        return dev
 
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
-        get_last_track = lambda: self._api.getDataTrack("track_thumb")
-        last_track_url = await self.hass.async_add_executor_job(get_last_track)
+        last_track_url = self.coordinator.api.getDataTrack("track_thumb")
+        if last_track_url is None:
+            await self.coordinator.async_refresh()
+            last_track_url = self.coordinator.api.getDataTrack("track_thumb")
+            if last_track_url is None:
+                return self._last_image
 
         if last_track_url == self._last_url and self._last_image is not None:
-            # The path image is the same as before so the image is the same:
             return self._last_image
 
         try:
@@ -103,25 +102,19 @@ class LastTrackCamera(GenericCamera):
             )
             response.raise_for_status()
 
-            # NIU's overseas thumbnail endpoint sometimes returns HTTP 200
-            # with Content-Type: image/png but a JSON error body like:
-            #   {"data":null,"desc":"img fail","status":200}
-            # Detect this by checking for a JSON-like response body and bail out
-            # gracefully instead of passing garbage bytes to Home Assistant.
             body = response.content
             stripped = body.lstrip()
             if stripped.startswith(b"{") or stripped.startswith(b"["):
                 try:
                     error_payload = json.loads(body)
                     _LOGGER.warning(
-                        "NIU thumbnail endpoint returned a JSON error instead of "
-                        "an image (URL: %s): %s",
+                        "NIU thumbnail endpoint returned JSON instead of an image (URL: %s): %s",
                         last_track_url,
                         error_payload,
                     )
-                except Exception:
+                except json.JSONDecodeError:
                     pass
-                return self._last_image  # return last known-good frame
+                return self._last_image
 
             self._last_image = body
         except httpx.TimeoutException:

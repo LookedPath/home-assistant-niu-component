@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 ACCOUNT_BASE_URL = "https://account-fk.niu.com"
 LOGIN_URI = "/v3/api/oauth2/token"
 API_BASE_URL = "https://app-api-fk.niu.com"
@@ -10,6 +12,7 @@ IGNITION_URI = "/v5/cmd/creat"
 # FIRMWARE_BAS_URL = '/motorota/getfirmwareversion'
 
 DOMAIN = "niu"
+PLATFORMS = ["sensor", "switch"]
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_SCOOTER_ID = "scooter_id"
@@ -17,6 +20,10 @@ CONF_AUTH = "conf_auth"
 CONF_SENSORS = "sensors_selected"
 CONF_LANGUAGE = "language"
 CONF_TOKEN_DATA = "token_data"
+DATA_API = "api"
+DATA_COORDINATOR = "coordinator"
+
+UPDATE_INTERVAL = timedelta(minutes=15)
 
 CONF_AVAILABLE_LANGUAGES = [
     {"value": "en-US", "label": "English (US)"},
@@ -84,7 +91,6 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_SCOOTER_ID, default=DEFAULT_SCOOTER_ID): cv.positive_int,
         vol.Optional(CONF_MONITORED_VARIABLES, default=["BatteryCharge"]): vol.All(
             cv.ensure_list,
-            vol.Length(min=1),
             [
                 vol.In(
                     [
