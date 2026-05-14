@@ -87,7 +87,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             username = user_input[CONF_USERNAME]
             password = user_input[CONF_PASSWORD]
             scooter_id = user_input[CONF_SCOOTER_ID]
-            sensors_selected = user_input[CONF_SENSORS]
+            sensors_selected = normalize_sensor_selections(user_input[CONF_SENSORS])
             language = user_input[CONF_LANGUAGE]
             niu_auth = NiuAuthenticator(
                 username, password, scooter_id, sensors_selected, language
@@ -120,7 +120,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             # Update the config entry data with new sensors and language
             auth_data = self.config_entry.data[CONF_AUTH].copy()
-            auth_data[CONF_SENSORS] = user_input[CONF_SENSORS]
+            auth_data[CONF_SENSORS] = normalize_sensor_selections(
+                user_input[CONF_SENSORS]
+            )
             auth_data[CONF_LANGUAGE] = user_input[CONF_LANGUAGE]
 
             # Update the config entry
@@ -132,7 +134,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         # Get current values from config entry
         current_auth = self.config_entry.data.get(CONF_AUTH, {})
-        current_sensors = current_auth.get(CONF_SENSORS, AVAILABLE_SENSORS)
+        current_sensors = normalize_sensor_selections(
+            current_auth.get(CONF_SENSORS, AVAILABLE_SENSORS)
+        )
         current_language = current_auth.get(CONF_LANGUAGE, DEFAULT_LANGUAGE)
 
         options_schema = vol.Schema(

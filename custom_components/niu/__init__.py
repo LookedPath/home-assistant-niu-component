@@ -19,6 +19,7 @@ from .const import (
     DATA_API,
     DATA_COORDINATOR,
     DOMAIN,
+    normalize_sensor_selections,
     PLATFORMS,
 )
 from .coordinator import NiuDataUpdateCoordinator, NiuMetadata
@@ -32,7 +33,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if niu_auth is None:
         return False
 
-    sensors_selected = niu_auth.get(CONF_SENSORS, [])
+    sensors_selected = normalize_sensor_selections(niu_auth.get(CONF_SENSORS, []))
     platforms = PLATFORMS.copy()
     if "LastTrackThumb" in sensors_selected:
         platforms.append("camera")
@@ -109,7 +110,7 @@ async def async_update_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     niu_auth = entry.data.get(CONF_AUTH, {})
-    sensors_selected = niu_auth.get(CONF_SENSORS, [])
+    sensors_selected = normalize_sensor_selections(niu_auth.get(CONF_SENSORS, []))
 
     platforms = PLATFORMS.copy()
     if "LastTrackThumb" in sensors_selected:

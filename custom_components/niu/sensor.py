@@ -11,10 +11,12 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    BIN_SENSOR_TYPES,
     CONF_AUTH,
     CONF_SENSORS,
     DATA_COORDINATOR,
     DOMAIN,
+    normalize_sensor_selections,
     SENSOR_TYPE_BAT,
     SENSOR_TYPE_DIST,
     SENSOR_TYPE_MOTO,
@@ -39,12 +41,12 @@ async def async_setup_entry(
         return
 
     coordinator = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
-    sensors_selected = niu_auth.get(CONF_SENSORS, [])
+    sensors_selected = normalize_sensor_selections(niu_auth.get(CONF_SENSORS, []))
 
     devices = [
         NiuSensor(coordinator, sensor, *SENSOR_TYPES[sensor])
         for sensor in sensors_selected
-        if sensor != "LastTrackThumb"
+        if sensor != "LastTrackThumb" and sensor not in BIN_SENSOR_TYPES
     ]
     async_add_entities(devices)
 

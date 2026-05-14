@@ -12,7 +12,7 @@ IGNITION_URI = "/v5/cmd/creat"
 # FIRMWARE_BAS_URL = '/motorota/getfirmwareversion'
 
 DOMAIN = "niu"
-PLATFORMS = ["sensor", "switch"]
+PLATFORMS = ["sensor", "switch", "binary_sensor"]
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_SCOOTER_ID = "scooter_id"
@@ -46,9 +46,13 @@ SENSOR_TYPE_POS = "POSITION"
 # SENSOR_TYPE_SYSTEM = 'SYSTEM'
 SENSOR_TYPE_TRACK = "TRACK"
 
+LEGACY_SENSOR_SELECTIONS = {
+    "Isconnected": "IsBatteryConnected",
+}
+
 AVAILABLE_SENSORS = [
     "BatteryCharge",
-    "Isconnected",
+    "IsBatteryConnected",
     "TimesCharged",
     "temperatureDesc",
     "Temperature",
@@ -84,6 +88,20 @@ from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.const import CONF_MONITORED_VARIABLES
 import homeassistant.helpers.config_validation as cv
 
+
+def normalize_sensor_selections(sensors_selected):
+    """Normalize stored sensor selections while keeping order stable."""
+    normalized = []
+    for sensor in sensors_selected:
+        normalized_sensor = LEGACY_SENSOR_SELECTIONS.get(sensor, sensor)
+        if normalized_sensor not in normalized:
+            normalized.append(normalized_sensor)
+
+    return normalized
+
+
+VALID_SENSOR_SELECTIONS = AVAILABLE_SENSORS + list(LEGACY_SENSOR_SELECTIONS)
+
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Required(CONF_USERNAME): cv.string,
@@ -93,34 +111,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
             cv.ensure_list,
             [
                 vol.In(
-                    [
-                        "BatteryCharge",
-                        "Isconnected",
-                        "TimesCharged",
-                        "temperatureDesc",
-                        "Temperature",
-                        "BatteryGrade",
-                        "CurrentSpeed",
-                        "ScooterConnected",
-                        "IsCharging",
-                        "IsLocked",
-                        "TimeLeft",
-                        "EstimatedMileage",
-                        "centreCtrlBatt",
-                        "HDOP",
-                        "Longitude",
-                        "Latitude",
-                        "Distance",
-                        "RidingTime",
-                        "totalMileage",
-                        "DaysInUse",
-                        "LastTrackStartTime",
-                        "LastTrackEndTime",
-                        "LastTrackDistance",
-                        "LastTrackAverageSpeed",
-                        "LastTrackRidingtime",
-                        "LastTrackThumb",
-                    ]
+                    VALID_SENSOR_SELECTIONS
                 )
             ],
         ),
@@ -135,14 +126,6 @@ SENSOR_TYPES = {
         SENSOR_TYPE_BAT,
         "battery",
         "mdi:battery-charging-50",
-    ],
-    "Isconnected": [
-        "is_connected",
-        "",
-        "isConnected",
-        SENSOR_TYPE_BAT,
-        "connectivity",
-        "mdi:connection",
     ],
     "TimesCharged": [
         "times_charged",
@@ -184,23 +167,6 @@ SENSOR_TYPES = {
         "none",
         "mdi:speedometer",
     ],
-    "ScooterConnected": [
-        "scooter_connected",
-        "",
-        "isConnected",
-        SENSOR_TYPE_MOTO,
-        "connectivity",
-        "mdi:motorbike-electric",
-    ],
-    "IsCharging": [
-        "is_charging",
-        "",
-        "isCharging",
-        SENSOR_TYPE_MOTO,
-        "power",
-        "mdi:battery-charging",
-    ],
-    "IsLocked": ["is_locked", "", "lockStatus", SENSOR_TYPE_MOTO, "lock", "mdi:lock"],
     "TimeLeft": [
         "time_left",
         "h",
@@ -307,5 +273,36 @@ SENSOR_TYPES = {
         SENSOR_TYPE_TRACK,
         "none",
         "mdi:map",
+    ],
+}
+
+BIN_SENSOR_TYPES = {
+    "IsBatteryConnected": [
+        "is_battery_connected",
+        "isConnected",
+        SENSOR_TYPE_BAT,
+        "connectivity",
+        "mdi:battery-sync",
+    ],
+    "ScooterConnected": [
+        "scooter_connected",
+        "isConnected",
+        SENSOR_TYPE_MOTO,
+        "connectivity",
+        "mdi:motorbike-electric",
+    ],
+    "IsCharging": [
+        "is_charging",
+        "isCharging",
+        SENSOR_TYPE_MOTO,
+        "battery_charging",
+        "mdi:battery-charging",
+    ],
+    "IsLocked": [
+        "is_locked",
+        "lockStatus",
+        SENSOR_TYPE_MOTO,
+        "lock",
+        "mdi:lock",
     ],
 }
