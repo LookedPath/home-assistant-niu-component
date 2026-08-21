@@ -87,12 +87,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 )
                 return
 
+        if service_api is api:
+            await coordinator.async_set_ignition(ignition)
+            return
+
         result = await hass.async_add_executor_job(service_api.setIgnition, ignition)
         if service_api.has_unsaved_token():
             await service_api.async_save_token()
 
-        if result and service_api is api:
-            await coordinator.async_refresh()
+        if not result:
+            _LOGGER.error(
+                "Unable to set NIU ignition for scooterId %s", service_scooter_id
+            )
 
     hass.services.async_register(DOMAIN, "set_scooter_ignition", ignition_service)
     entry.async_on_unload(entry.add_update_listener(async_update_entry))

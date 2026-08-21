@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any
 
@@ -46,10 +45,10 @@ class NiuIgnitionSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        """Return true if the switch is on."""
-        state = self.coordinator.api.getDataMoto("isAccOn")
+        """Return the last state confirmed by NIU."""
+        state = self.coordinator.ignition_state
         if state is not None:
-            self._last_is_on = bool(state)
+            self._last_is_on = state
 
         return self._last_is_on
 
@@ -71,18 +70,8 @@ class NiuIgnitionSwitch(CoordinatorEntity, SwitchEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
-        result = await self.coordinator.async_set_ignition(True)
-        if result:
-            self._last_is_on = True
-            self.async_write_ha_state()
-            await asyncio.sleep(5)
-            await self.coordinator.async_refresh()
+        await self.coordinator.async_set_ignition(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off."""
-        result = await self.coordinator.async_set_ignition(False)
-        if result:
-            self._last_is_on = False
-            self.async_write_ha_state()
-            await asyncio.sleep(5)
-            await self.coordinator.async_refresh()
+        await self.coordinator.async_set_ignition(False)

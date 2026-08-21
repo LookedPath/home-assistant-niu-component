@@ -18,6 +18,7 @@ The integration can be setup from the GUI.
 - Entities are now created from scooter metadata first and then refreshed through one shared update cycle, which avoids startup template failures caused by late entity registration
 - Transient API failures now keep the last known-good sensor values instead of resetting entities to unknown when NIU returns partial or missing payloads
 - Sensors, switch, and camera entities are grouped under the scooter device automatically
+- Ignition commands are confirmed with short-lived targeted polling, while Home Assistant keeps showing the previous state until NIU reports that the command has completed
 
 ## Some pictures:
 

@@ -25,6 +25,10 @@ DATA_COORDINATOR = "coordinator"
 
 UPDATE_INTERVAL = timedelta(minutes=15)
 
+# Absolute delays, in seconds after an accepted ignition command, at which the
+# lightweight motor-status endpoint is checked for confirmation.
+IGNITION_CONFIRMATION_POLL_DELAYS = (2, 5, 10, 20, 35, 60)
+
 CONF_AVAILABLE_LANGUAGES = [
     {"value": "en-US", "label": "English (US)"},
     {"value": "de-DE", "label": "Deutsch (Deutschland)"},

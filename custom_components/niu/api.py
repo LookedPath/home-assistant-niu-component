@@ -320,6 +320,31 @@ class NiuApi:
             "track": self.dataTrackInfo,
         }
 
+    def fetch_ignition_status(self):
+        """Fetch ignition status without changing the cached motor snapshot."""
+        data = self.get_info(MOTOR_INDEX_API_URI)
+        if not data:
+            return None
+
+        try:
+            raw_state = data["data"]["isAccOn"]
+        except (KeyError, TypeError):
+            return None
+
+        if raw_state in (True, 1, "1"):
+            state = True
+        elif raw_state in (False, 0, "0"):
+            state = False
+        else:
+            return None
+
+        return state, data
+
+    def commit_motor_data(self, data):
+        """Commit confirmed motor data and return the updated snapshot."""
+        self.dataMoto = data
+        return self._snapshot()
+
     def _update_data_field(self, attr_name, fetcher, path):
         data = fetcher(path)
         if data:
