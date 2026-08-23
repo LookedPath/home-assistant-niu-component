@@ -197,6 +197,90 @@ class NiuApiTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(self.api_module.NiuVehicleNotFoundError):
             await api.async_initialize()
 
+    def test_second_battery_is_detected_only_when_reported(self) -> None:
+        api = self.api_module.NiuApi("user", "password", client=object())
+        api.dataBat = {
+            "data": {
+                "batteries": {
+                    "compartmentA": {"batteryCharging": 81},
+                    "compartmentB": {
+                        "batteryCharging": 74,
+                        "isConnected": True,
+                    },
+                }
+            }
+        }
+
+        self.assertTrue(api.hasSecondBattery())
+        self.assertEqual(api.getDataBatB("batteryCharging"), 74)
+        self.assertTrue(api.getDataBatB("isConnected"))
+
+        del api.dataBat["data"]["batteries"]["compartmentB"]
+        self.assertFalse(api.hasSecondBattery())
+        self.assertIsNone(api.getDataBatB("batteryCharging"))
+
+        api.dataBat["data"]["isDoubleBattery"] = "1"
+        self.assertTrue(api.hasSecondBattery())
+
+    def test_nested_tpms_values_are_detected_and_normalized(self) -> None:
+        api = self.api_module.NiuApi("user", "password", client=object())
+        api.dataMoto = {
+            "data": {
+                "tpms": {
+                    "pressureUnit": "kPa",
+                    "frontWheel": {"pressure": 245, "temperature": 31},
+                    "rearWheel": {"pressure": 260, "temperature": 34},
+                }
+            }
+        }
+
+        self.assertTrue(api.hasTpmsMetric("front.pressure"))
+        self.assertEqual(api.getDataTpms("front.pressure"), 2.45)
+        self.assertEqual(api.getDataTpms("rear.pressure"), 2.6)
+        self.assertEqual(api.getDataTpms("rear.temperature"), 34.0)
+
+    def test_flat_tpms_values_support_alternate_key_styles(self) -> None:
+        api = self.api_module.NiuApi("user", "password", client=object())
+        api.dataMoto = {
+            "data": {
+                "front_tire_pressure": 35,
+                "rear-tyre-pressure": 37,
+                "frontTireTemperature": 77,
+                "temperatureUnit": "F",
+            }
+        }
+
+        self.assertEqual(api.getDataTpms("front.pressure"), 2.41)
+        self.assertEqual(api.getDataTpms("rear.pressure"), 2.55)
+        self.assertEqual(api.getDataTpms("front.temperature"), 25.0)
+        self.assertFalse(api.hasTpmsMetric("rear.temperature"))
+
+    def test_list_tpms_values_are_matched_by_wheel_position(self) -> None:
+        api = self.api_module.NiuApi("user", "password", client=object())
+        api.dataMoto = {
+            "data": {
+                "tpms": {
+                    "items": [
+                        {
+                            "position": "front-wheel",
+                            "pressure": {"value": 245, "unit": "kPa"},
+                            "temperature": 29,
+                        },
+                        {
+                            "location": "rear",
+                            "pressure": {"value": 2.6, "unit": "bar"},
+                            "temperature": 32,
+                        },
+                    ]
+                }
+            }
+        }
+
+        self.assertEqual(api.getDataTpms("front.pressure"), 2.45)
+        self.assertEqual(api.getDataTpms("front.temperature"), 29.0)
+        self.assertEqual(api.getDataTpms("rear.pressure"), 2.6)
+        self.assertEqual(api.getDataTpms("rear.temperature"), 32.0)
+
 
 if __name__ == "__main__":
     unittest.main()

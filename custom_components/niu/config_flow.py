@@ -35,7 +35,9 @@ from .const import (
     CONF_TOKEN_DATA,
     CONF_USERNAME,
     DEFAULT_LANGUAGE,
+    DEFAULT_SENSORS,
     DOMAIN,
+    SENSOR_LABELS,
     normalize_sensor_selections,
 )
 
@@ -55,7 +57,10 @@ def _language_selector() -> selector.SelectSelector:
 def _sensor_selector() -> selector.SelectSelector:
     return selector.SelectSelector(
         selector.SelectSelectorConfig(
-            options=AVAILABLE_SENSORS,
+            options=[
+                {"value": sensor, "label": SENSOR_LABELS.get(sensor, sensor)}
+                for sensor in AVAILABLE_SENSORS
+            ],
             multiple=True,
             mode=selector.SelectSelectorMode.LIST,
         )
@@ -113,7 +118,7 @@ def _vehicle_schema(
             ),
             vol.Required(
                 CONF_SENSORS,
-                default=AVAILABLE_SENSORS if sensors is None else sensors,
+                default=DEFAULT_SENSORS if sensors is None else sensors,
             ): _sensor_selector(),
         }
     )
@@ -132,7 +137,7 @@ def _flow_error(err: Exception) -> str:
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for a NIU scooter."""
 
-    VERSION = 2
+    VERSION = 3
 
     def __init__(self) -> None:
         self._api: NiuApi | None = None

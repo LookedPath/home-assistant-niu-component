@@ -17,6 +17,7 @@ from .const import (
     BIN_SENSOR_TYPES,
     IGNITION_CONFIRMATION_POLL_DELAYS,
     SENSOR_TYPE_BAT,
+    SENSOR_TYPE_BAT2,
     SENSOR_TYPE_MOTO,
     SENSOR_TYPE_OVERALL,
     SENSOR_TYPE_TRACK,
@@ -90,7 +91,7 @@ class NiuDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch only required endpoints and distinguish cache from success."""
         requests = [("motor", self.api.async_refresh_motor)]
-        if SENSOR_TYPE_BAT in self.sensor_groups:
+        if self.sensor_groups.intersection({SENSOR_TYPE_BAT, SENSOR_TYPE_BAT2}):
             requests.append(("battery", self.api.async_refresh_battery))
         if SENSOR_TYPE_OVERALL in self.sensor_groups:
             requests.append(("overall", self.api.async_refresh_overall))

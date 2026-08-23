@@ -10,6 +10,7 @@ The integration can be setup from the GUI.
 - You can turn your scooter on and off directly from Home Assistant
 - If you enable the Last Track sensor you'll get a camera entity that will show your scooter's last track
 - Accounts with multiple scooters can create a separate, serial-number-pinned entry for each scooter
+- Dual-battery and TPMS entities are added only when those values are present in NIU's payload for the scooter
 
 ## Changes:
 
@@ -22,6 +23,7 @@ The integration can be setup from the GUI.
 - Ignition commands are confirmed with short-lived targeted polling, while Home Assistant keeps showing the previous state until NIU reports that the command has completed
 - NIU requests use Home Assistant's shared asynchronous client with explicit timeouts, token recovery, rate-limit backoff, and user-visible authentication errors
 - Only the NIU endpoints required by the enabled entities are polled; motor status remains enabled for ignition confirmation
+- The last-track image now uses a native cached camera entity with response validation and privacy-safe logging
 
 ## Some pictures:
 
@@ -50,6 +52,8 @@ Notes:
 - Leaving all sensors unselected no longer blocks setup; the ignition switch can still load on its own.
 - Sensor, switch, and camera state now come from a shared snapshot, so entities update together more consistently.
 - Existing entries are migrated automatically from their old vehicle-list index to the scooter's stable serial number.
+- New entries leave GPS coordinates and ride-history entities disabled by default; they remain available from the integration options.
+- Existing primary-battery selections automatically gain their matching battery-B entity on dual-battery models.
 - For the `niu.set_scooter_ignition` action, select the NIU config entry when more than one scooter is configured. Legacy `scooterId` calls continue to work when they identify exactly one loaded entry.
 
 ## Known bugs

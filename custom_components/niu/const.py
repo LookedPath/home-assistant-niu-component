@@ -48,10 +48,12 @@ DEFAULT_LANGUAGE = "en-US"
 DEFAULT_SCOOTER_ID = 0
 
 SENSOR_TYPE_BAT = "BAT"
+SENSOR_TYPE_BAT2 = "BAT2"
 SENSOR_TYPE_MOTO = "MOTO"
 SENSOR_TYPE_DIST = "DIST"
 SENSOR_TYPE_OVERALL = "TOTAL"
 SENSOR_TYPE_POS = "POSITION"
+SENSOR_TYPE_TPMS = "TPMS"
 # SENSOR_TYPE_SYSTEM = 'SYSTEM'
 SENSOR_TYPE_TRACK = "TRACK"
 
@@ -61,11 +63,17 @@ LEGACY_SENSOR_SELECTIONS = {
 
 AVAILABLE_SENSORS = [
     "BatteryCharge",
+    "BatteryChargeB",
     "IsBatteryConnected",
+    "IsBatteryConnectedB",
     "TimesCharged",
+    "TimesChargedB",
     "temperatureDesc",
+    "temperatureDescB",
     "Temperature",
+    "TemperatureB",
     "BatteryGrade",
+    "BatteryGradeB",
     "CurrentSpeed",
     "ScooterConnected",
     "IsCharging",
@@ -86,7 +94,62 @@ AVAILABLE_SENSORS = [
     "LastTrackAverageSpeed",
     "LastTrackRidingtime",
     "LastTrackThumb",
+    "TPMSFrontPressure",
+    "TPMSFrontTemperature",
+    "TPMSRearPressure",
+    "TPMSRearTemperature",
 ]
+
+# Location and ride-history entities can reveal where a scooter is or has been.
+# Keep them opt-in for new entries while preserving the selections of existing
+# entries during migration.
+PRIVACY_SENSITIVE_SENSORS = frozenset(
+    {
+        "HDOP",
+        "Longitude",
+        "Latitude",
+        "Distance",
+        "RidingTime",
+        "LastTrackStartTime",
+        "LastTrackEndTime",
+        "LastTrackDistance",
+        "LastTrackAverageSpeed",
+        "LastTrackRidingtime",
+        "LastTrackThumb",
+    }
+)
+DEFAULT_SENSORS = [
+    sensor for sensor in AVAILABLE_SENSORS if sensor not in PRIVACY_SENSITIVE_SENSORS
+]
+
+# New model-aware equivalents that can be inferred from an existing primary
+# battery selection when upgrading an entry created by an older release.
+SECOND_BATTERY_EQUIVALENTS = {
+    "BatteryCharge": "BatteryChargeB",
+    "IsBatteryConnected": "IsBatteryConnectedB",
+    "TimesCharged": "TimesChargedB",
+    "temperatureDesc": "temperatureDescB",
+    "Temperature": "TemperatureB",
+    "BatteryGrade": "BatteryGradeB",
+}
+TPMS_SENSORS = (
+    "TPMSFrontPressure",
+    "TPMSFrontTemperature",
+    "TPMSRearPressure",
+    "TPMSRearTemperature",
+)
+SENSOR_LABELS = {
+    "BatteryChargeB": "Battery charge B",
+    "IsBatteryConnectedB": "Battery B connected",
+    "TimesChargedB": "Battery B charge cycles",
+    "temperatureDescB": "Battery B temperature status",
+    "TemperatureB": "Battery B temperature",
+    "BatteryGradeB": "Battery health B",
+    "TPMSFrontPressure": "Front tire pressure",
+    "TPMSFrontTemperature": "Front tire temperature",
+    "TPMSRearPressure": "Rear tire pressure",
+    "TPMSRearTemperature": "Rear tire temperature",
+}
 
 
 import voluptuous as vol
@@ -136,11 +199,27 @@ SENSOR_TYPES = {
         "battery",
         "mdi:battery-charging-50",
     ],
+    "BatteryChargeB": [
+        "battery_charge_b",
+        "%",
+        "batteryCharging",
+        SENSOR_TYPE_BAT2,
+        "battery",
+        "mdi:battery-charging-50",
+    ],
     "TimesCharged": [
         "times_charged",
         "x",
         "chargedTimes",
         SENSOR_TYPE_BAT,
+        "none",
+        "mdi:battery-charging-wireless",
+    ],
+    "TimesChargedB": [
+        "times_charged_b",
+        "x",
+        "chargedTimes",
+        SENSOR_TYPE_BAT2,
         "none",
         "mdi:battery-charging-wireless",
     ],
@@ -152,6 +231,14 @@ SENSOR_TYPES = {
         "none",
         "mdi:thermometer-alert",
     ],
+    "temperatureDescB": [
+        "temp_descr_b",
+        "",
+        "temperatureDesc",
+        SENSOR_TYPE_BAT2,
+        "none",
+        "mdi:thermometer-alert",
+    ],
     "Temperature": [
         "temperature",
         "°C",
@@ -160,11 +247,27 @@ SENSOR_TYPES = {
         "temperature",
         "mdi:thermometer",
     ],
+    "TemperatureB": [
+        "temperature_b",
+        "°C",
+        "temperature",
+        SENSOR_TYPE_BAT2,
+        "temperature",
+        "mdi:thermometer",
+    ],
     "BatteryGrade": [
         "battery_grade",
         "%",
         "gradeBattery",
         SENSOR_TYPE_BAT,
+        "battery",
+        "mdi:car-battery",
+    ],
+    "BatteryGradeB": [
+        "battery_grade_b",
+        "%",
+        "gradeBattery",
+        SENSOR_TYPE_BAT2,
         "battery",
         "mdi:car-battery",
     ],
@@ -283,6 +386,38 @@ SENSOR_TYPES = {
         "none",
         "mdi:map",
     ],
+    "TPMSFrontPressure": [
+        "tpms_front_pressure",
+        "bar",
+        "front.pressure",
+        SENSOR_TYPE_TPMS,
+        "pressure",
+        "mdi:car-tire-alert",
+    ],
+    "TPMSFrontTemperature": [
+        "tpms_front_temperature",
+        "°C",
+        "front.temperature",
+        SENSOR_TYPE_TPMS,
+        "temperature",
+        "mdi:thermometer",
+    ],
+    "TPMSRearPressure": [
+        "tpms_rear_pressure",
+        "bar",
+        "rear.pressure",
+        SENSOR_TYPE_TPMS,
+        "pressure",
+        "mdi:car-tire-alert",
+    ],
+    "TPMSRearTemperature": [
+        "tpms_rear_temperature",
+        "°C",
+        "rear.temperature",
+        SENSOR_TYPE_TPMS,
+        "temperature",
+        "mdi:thermometer",
+    ],
 }
 
 BIN_SENSOR_TYPES = {
@@ -290,6 +425,13 @@ BIN_SENSOR_TYPES = {
         "is_battery_connected",
         "isConnected",
         SENSOR_TYPE_BAT,
+        "connectivity",
+        "mdi:battery-sync",
+    ],
+    "IsBatteryConnectedB": [
+        "is_battery_connected_b",
+        "isConnected",
+        SENSOR_TYPE_BAT2,
         "connectivity",
         "mdi:battery-sync",
     ],

@@ -201,7 +201,9 @@ def load_config_flow_module():
         "CONF_TOKEN_DATA": "token_data",
         "CONF_USERNAME": "username",
         "DEFAULT_LANGUAGE": "en-US",
+        "DEFAULT_SENSORS": ["BatteryCharge", "ScooterConnected"],
         "DOMAIN": "niu",
+        "SENSOR_LABELS": {},
     }
     for key, value in values.items():
         setattr(const, key, value)

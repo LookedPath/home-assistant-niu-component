@@ -1,79 +1,152 @@
-"""Last Track for Niu Integration integration.
-    Author: Giovanni P. (@pikka97)
-"""
+"""Last-track camera for the NIU integration."""
 
+from __future__ import annotations
+
+import asyncio
 import json
 import logging
-from typing import final
+from time import monotonic
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
-from homeassistant.components.camera import CameraState
-from homeassistant.components.generic.camera import GenericCamera
+from homeassistant.components.camera import Camera
 from homeassistant.helpers.httpx_client import get_async_client
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import *
+from .const import DOMAIN
+from .coordinator import NiuDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
-GET_IMAGE_TIMEOUT = 10
+GET_IMAGE_TIMEOUT = 5
+GET_IMAGE_TOTAL_TIMEOUT = 8
+IMAGE_FAILURE_RETRY_INTERVAL = 60
+
+
+def _detect_image_content_type(content: bytes) -> str | None:
+    """Return the media type identified from common image signatures."""
+    if content.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if content.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if content.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if content.startswith(b"RIFF") and content[8:12] == b"WEBP":
+        return "image/webp"
+    if content.startswith(b"BM"):
+        return "image/bmp"
+
+    return None
+
+
+def _thumbnail_url_candidates(url: str) -> list[str]:
+    """Return known NIU thumbnail URL variants without duplicates."""
+    parsed = urlsplit(url)
+    if not any(
+        path in parsed.path for path in ("/track/thumb/", "/track/overseas/thumb/")
+    ):
+        return [url]
+
+    fk_gateway = parsed.hostname == "s.niucache.com" and parsed.path.startswith(
+        "/app-api-fk/"
+    )
+    direct_path = parsed.path.removeprefix("/app-api-fk") if fk_gateway else parsed.path
+    domestic_path = direct_path.replace("/track/overseas/thumb/", "/track/thumb/")
+    overseas_path = domestic_path.replace("/track/thumb/", "/track/overseas/thumb/")
+
+    if fk_gateway:
+        gateway_domestic_path = parsed.path.replace(
+            "/track/overseas/thumb/", "/track/thumb/"
+        )
+        variants = [
+            urlunsplit(parsed._replace(path=gateway_domestic_path)),
+            url,
+            urlunsplit(
+                parsed._replace(netloc="app-api-fk.niu.com", path=domestic_path)
+            ),
+            urlunsplit(
+                parsed._replace(netloc="app-api-fk.niu.com", path=overseas_path)
+            ),
+        ]
+    else:
+        variants = [
+            url,
+            urlunsplit(
+                parsed._replace(netloc="app-api.niucache.com", path=domestic_path)
+            ),
+            urlunsplit(
+                parsed._replace(netloc="app-api-fk.niu.com", path=overseas_path)
+            ),
+            urlunsplit(
+                parsed._replace(netloc="app-api-fk.niu.com", path=domestic_path)
+            ),
+            urlunsplit(parsed._replace(netloc="app-api.niu.com", path=domestic_path)),
+        ]
+    return list(dict.fromkeys(variants))
+
+
+def _thumbnail_path_type(url: str) -> str:
+    """Describe a thumbnail path without exposing its ride identifier."""
+    path = urlsplit(url).path
+    if "/track/overseas/thumb/" in path:
+        return "overseas"
+    if "/track/thumb/" in path:
+        return "domestic"
+    return "other"
+
+
+def _invalid_image_description(content: bytes) -> str:
+    """Describe an invalid response without logging its full body."""
+    try:
+        payload = json.loads(content)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return f"unrecognized {len(content)}-byte response"
+
+    if not isinstance(payload, dict):
+        return "JSON response"
+    description = payload.get("desc")
+    status = payload.get("status")
+    if description:
+        return f"NIU status {status}: {description}"
+    return "JSON response"
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
-    coordinator = entry.runtime_data
-    camera_name = coordinator.metadata.sensor_prefix + " Last Track Camera"
-
-    camera_config = {
-        "name": camera_name,
-        "still_image_url": "",
-        "stream_source": None,
-        "username": None,
-        "password": None,
-        "content_type": "image/jpeg",
-        "advanced": {
-            "authentication": "basic",
-            "limit_refetch_to_url_change": False,
-            "framerate": 2,
-            "verify_ssl": True,
-        },
-    }
-    async_add_entities(
-        [
-            LastTrackCamera(
-                hass,
-                coordinator,
-                camera_config,
-                camera_name,
-                camera_name,
-            )
-        ]
-    )
+    """Set up the last-track camera from a config entry."""
+    async_add_entities([LastTrackCamera(hass, entry.runtime_data)])
 
 
-class LastTrackCamera(GenericCamera):
-    def __init__(
-        self, hass, coordinator, device_info, identifier: str, title: str
-    ) -> None:
-        self.coordinator = coordinator
-        super().__init__(hass, device_info, identifier, title)
+class LastTrackCamera(CoordinatorEntity, Camera):
+    """Still-image camera showing the latest NIU track thumbnail."""
 
-    @property
-    @final
-    def state(self) -> str:
-        """Return the camera state."""
-        return CameraState.IDLE
+    _attr_is_streaming = False
+
+    def __init__(self, hass, coordinator: NiuDataUpdateCoordinator) -> None:
+        CoordinatorEntity.__init__(self, coordinator)
+        Camera.__init__(self)
+        self.hass = hass
+        camera_name = coordinator.metadata.sensor_prefix + " Last Track Camera"
+        # Preserve GenericCamera's old identifier to avoid creating a duplicate.
+        self._attr_unique_id = camera_name
+        self._attr_name = camera_name
+        self._last_url: str | None = None
+        self._last_image: bytes | None = None
+        self._failed_url: str | None = None
+        self._failure_retry_at = 0.0
 
     @property
     def is_on(self) -> bool:
-        """Return true if on."""
-        return self._last_image is not None
+        """Return true because this is an always-available still-image proxy."""
+        return True
 
     @property
     def available(self) -> bool:
-        """Return camera availability from coordinator state."""
+        """Keep serving a cached image during a temporary NIU outage."""
         return self.coordinator.last_update_success or self._last_image is not None
 
     @property
     def device_info(self):
+        """Return the scooter device represented by this camera."""
         return {
             "identifiers": {(DOMAIN, self.coordinator.metadata.sn)},
             "name": self.coordinator.metadata.sensor_prefix,
@@ -85,44 +158,111 @@ class LastTrackCamera(GenericCamera):
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
+        """Return a cached thumbnail, downloading only when its URL changes."""
         last_track_url = self.coordinator.api.getDataTrack("track_thumb")
-        if last_track_url is None:
-            await self.coordinator.async_refresh()
-            last_track_url = self.coordinator.api.getDataTrack("track_thumb")
-            if last_track_url is None:
-                return self._last_image
-
+        if not last_track_url:
+            _LOGGER.debug("No NIU last-track thumbnail URL available")
+            return self._last_image
         if last_track_url == self._last_url and self._last_image is not None:
             return self._last_image
+        if last_track_url == self._failed_url and monotonic() < self._failure_retry_at:
+            return self._last_image
 
+        candidates = _thumbnail_url_candidates(last_track_url)
+        _LOGGER.debug(
+            "Trying %d NIU last-track thumbnail candidate(s) "
+            "(source host: %s, path type: %s)",
+            len(candidates),
+            urlsplit(last_track_url).hostname or "relative",
+            _thumbnail_path_type(last_track_url),
+        )
+        client = get_async_client(self.hass, verify_ssl=True)
         try:
-            async_client = get_async_client(self.hass, verify_ssl=self.verify_ssl)
-            response = await async_client.get(
-                last_track_url, auth=self._auth, timeout=GET_IMAGE_TIMEOUT
-            )
-            response.raise_for_status()
+            async with asyncio.timeout(GET_IMAGE_TOTAL_TIMEOUT):
+                for candidate_url in candidates:
+                    candidate_host = urlsplit(candidate_url).hostname or "relative"
+                    candidate_path_type = _thumbnail_path_type(candidate_url)
+                    try:
+                        response = await client.get(
+                            candidate_url,
+                            timeout=GET_IMAGE_TIMEOUT,
+                            follow_redirects=True,
+                        )
+                        response.raise_for_status()
+                    except httpx.TimeoutException:
+                        _LOGGER.warning(
+                            "Timeout while fetching NIU last-track image candidate "
+                            "(host: %s, path type: %s)",
+                            candidate_host,
+                            candidate_path_type,
+                        )
+                        continue
+                    except httpx.HTTPStatusError as err:
+                        status_code = getattr(
+                            getattr(err, "response", None), "status_code", "unknown"
+                        )
+                        _LOGGER.warning(
+                            "Could not fetch NIU last-track image candidate "
+                            "(host: %s, path type: %s): HTTP %s",
+                            candidate_host,
+                            candidate_path_type,
+                            status_code,
+                        )
+                        continue
+                    except httpx.RequestError:
+                        _LOGGER.warning(
+                            "Could not fetch NIU last-track image candidate "
+                            "(host: %s, path type: %s): request failed",
+                            candidate_host,
+                            candidate_path_type,
+                        )
+                        continue
 
-            body = response.content
-            stripped = body.lstrip()
-            if stripped.startswith(b"{") or stripped.startswith(b"["):
-                try:
-                    error_payload = json.loads(body)
-                    _LOGGER.warning(
-                        "NIU thumbnail endpoint returned JSON instead of an image (URL: %s): %s",
-                        last_track_url,
-                        error_payload,
+                    content_type = (
+                        response.headers.get("content-type", "")
+                        .partition(";")[0]
+                        .strip()
+                        .lower()
                     )
-                except json.JSONDecodeError:
-                    pass
-                return self._last_image
+                    if content_type and not content_type.startswith("image/"):
+                        _LOGGER.warning(
+                            "NIU last-track thumbnail returned invalid "
+                            "content type: %s",
+                            content_type,
+                        )
+                        continue
+                    if not response.content:
+                        _LOGGER.warning(
+                            "NIU last-track thumbnail returned an empty response"
+                        )
+                        continue
 
-            self._last_image = body
-        except httpx.TimeoutException:
-            _LOGGER.error("Timeout getting camera image from %s", self._name)
-            return self._last_image
-        except (httpx.RequestError, httpx.HTTPStatusError) as err:
-            _LOGGER.error("Error getting new camera image from %s: %s", self._name, err)
-            return self._last_image
+                    detected_content_type = _detect_image_content_type(response.content)
+                    if detected_content_type is None:
+                        _LOGGER.warning(
+                            "NIU last-track thumbnail returned invalid image data: %s",
+                            _invalid_image_description(response.content),
+                        )
+                        continue
 
-        self._last_url = last_track_url
+                    self.content_type = detected_content_type
+                    self._last_image = response.content
+                    self._last_url = last_track_url
+                    self._failed_url = None
+                    self._failure_retry_at = 0.0
+                    _LOGGER.debug(
+                        "Fetched NIU last-track thumbnail (%d bytes, %s)",
+                        len(response.content),
+                        detected_content_type,
+                    )
+                    return self._last_image
+        except TimeoutError:
+            _LOGGER.warning("Timed out while fetching NIU last-track thumbnails")
+        except asyncio.CancelledError:
+            self._failed_url = last_track_url
+            self._failure_retry_at = monotonic() + IMAGE_FAILURE_RETRY_INTERVAL
+            raise
+
+        self._failed_url = last_track_url
+        self._failure_retry_at = monotonic() + IMAGE_FAILURE_RETRY_INTERVAL
         return self._last_image

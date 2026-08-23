@@ -9,6 +9,7 @@ from email.utils import parsedate_to_datetime
 import hashlib
 import logging
 import math
+import re
 import time
 from time import gmtime, strftime
 from typing import Any
@@ -35,6 +36,51 @@ REQUEST_TIMEOUT = 30.0
 TOKEN_REFRESH_MARGIN = 5 * 60
 TOKEN_REFRESH_FALLBACK = 22 * 60 * 60
 AUTHENTICATION_STATUSES = {1131, "1131"}
+_MISSING = object()
+
+_TPMS_CONTAINER_ALIASES = (
+    "tpms",
+    "tire",
+    "tires",
+    "tyre",
+    "tyres",
+    "tireInfo",
+    "tyreInfo",
+    "tireStatus",
+    "tyreStatus",
+)
+_TPMS_POSITION_ALIASES = {
+    "front": (
+        "front",
+        "frontWheel",
+        "frontTire",
+        "frontTyre",
+        "wheelFront",
+        "tireFront",
+        "tyreFront",
+    ),
+    "rear": (
+        "rear",
+        "back",
+        "rearWheel",
+        "backWheel",
+        "rearTire",
+        "rearTyre",
+        "wheelRear",
+        "tireRear",
+        "tyreRear",
+    ),
+}
+_TPMS_METRIC_ALIASES = {
+    "pressure": ("pressure", "tirePressure", "tyrePressure", "pressureValue"),
+    "temperature": (
+        "temperature",
+        "temp",
+        "tireTemperature",
+        "tyreTemperature",
+        "temperatureValue",
+    ),
+}
 
 
 class NiuApiError(Exception):
@@ -582,6 +628,245 @@ class NiuApi:
             return self.dataBat["data"]["batteries"]["compartmentA"][id_field]
         except (KeyError, TypeError):
             return None
+
+    def getDataBatB(self, id_field):
+        """Return a field from the optional second battery compartment."""
+        try:
+            return self.dataBat["data"]["batteries"]["compartmentB"][id_field]
+        except (KeyError, TypeError):
+            try:
+                return self.dataMoto["data"]["batteries"]["compartmentB"][id_field]
+            except (KeyError, TypeError):
+                return None
+
+    def hasSecondBattery(self) -> bool:
+        """Return whether NIU reported a second battery compartment."""
+        try:
+            if isinstance(
+                self.dataBat["data"]["batteries"]["compartmentB"], dict
+            ):
+                return True
+        except (KeyError, TypeError):
+            pass
+        try:
+            if self.dataBat["data"].get("isDoubleBattery") in (True, 1, "1"):
+                return True
+        except (AttributeError, KeyError, TypeError):
+            pass
+        try:
+            return isinstance(
+                self.dataMoto["data"]["batteries"]["compartmentB"], dict
+            )
+        except (KeyError, TypeError):
+            return False
+
+    @staticmethod
+    def _normalized_payload_key(value: object) -> str:
+        """Normalize inconsistent NIU JSON key casing and separators."""
+        return re.sub(r"[^a-z0-9]", "", str(value).lower())
+
+    @classmethod
+    def _mapping_value(cls, mapping: object, aliases: tuple[str, ...]):
+        """Look up any alias in a mapping while ignoring key style."""
+        if not isinstance(mapping, dict):
+            return _MISSING
+        normalized = {
+            cls._normalized_payload_key(key): value for key, value in mapping.items()
+        }
+        for alias in aliases:
+            key = cls._normalized_payload_key(alias)
+            if key in normalized:
+                return normalized[key]
+        return _MISSING
+
+    @classmethod
+    def _tpms_unit(cls, metric: str, *mappings: object) -> str | None:
+        """Return a unit declared next to a TPMS value, if present."""
+        aliases = (
+            ("unit", "pressureUnit", "tirePressureUnit", "tyrePressureUnit")
+            if metric == "pressure"
+            else (
+                "unit",
+                "temperatureUnit",
+                "tempUnit",
+                "tireTemperatureUnit",
+                "tyreTemperatureUnit",
+            )
+        )
+        for mapping in mappings:
+            unit = cls._mapping_value(mapping, aliases)
+            if unit is not _MISSING and unit is not None:
+                return str(unit)
+        return None
+
+    def _find_tpms_value(
+        self, position: str, metric: str
+    ) -> tuple[bool, object | None, str | None]:
+        """Find common NIU TPMS payload layouts without assuming one model."""
+        try:
+            data = self.dataMoto["data"]
+        except (KeyError, TypeError):
+            return False, None, None
+        if not isinstance(data, dict):
+            return False, None, None
+
+        position_aliases = _TPMS_POSITION_ALIASES[position]
+        metric_aliases = _TPMS_METRIC_ALIASES[metric]
+        containers: list[dict[str, Any]] = [data]
+        item_lists: list[list[Any]] = []
+        for alias in _TPMS_CONTAINER_ALIASES:
+            container = self._mapping_value(data, (alias,))
+            if isinstance(container, dict) and container not in containers:
+                containers.insert(0, container)
+            elif isinstance(container, list):
+                item_lists.append(container)
+
+        for container in containers:
+            items = self._mapping_value(
+                container, ("items", "wheels", "sensors", "readings")
+            )
+            if isinstance(items, list) and items not in item_lists:
+                item_lists.append(items)
+
+        flat_aliases = tuple(
+            f"{position_alias}{metric_alias}"
+            for position_alias in position_aliases
+            for metric_alias in metric_aliases
+        ) + tuple(
+            f"{metric_alias}{position_alias}"
+            for position_alias in position_aliases
+            for metric_alias in metric_aliases
+        )
+
+        for container in containers:
+            position_data = self._mapping_value(container, position_aliases)
+            if isinstance(position_data, dict):
+                raw_value = self._mapping_value(position_data, metric_aliases)
+                if raw_value is not _MISSING:
+                    unit = self._tpms_unit(
+                        metric, raw_value, position_data, container, data
+                    )
+                    if isinstance(raw_value, dict):
+                        raw_value = self._mapping_value(
+                            raw_value, ("value", "data", "reading", "val")
+                        )
+                        if raw_value is _MISSING:
+                            raw_value = None
+                    return True, raw_value, unit
+
+            metric_data = self._mapping_value(container, metric_aliases)
+            if isinstance(metric_data, dict):
+                raw_value = self._mapping_value(metric_data, position_aliases)
+                if raw_value is not _MISSING:
+                    unit = self._tpms_unit(
+                        metric, raw_value, metric_data, container, data
+                    )
+                    if isinstance(raw_value, dict):
+                        raw_value = self._mapping_value(
+                            raw_value, ("value", "data", "reading", "val")
+                        )
+                        if raw_value is _MISSING:
+                            raw_value = None
+                    return True, raw_value, unit
+
+            raw_value = self._mapping_value(container, flat_aliases)
+            if raw_value is not _MISSING:
+                unit = self._tpms_unit(metric, raw_value, container, data)
+                if isinstance(raw_value, dict):
+                    raw_value = self._mapping_value(
+                        raw_value, ("value", "data", "reading", "val")
+                    )
+                    if raw_value is _MISSING:
+                        raw_value = None
+                return True, raw_value, unit
+
+        normalized_positions = {
+            self._normalized_payload_key(alias) for alias in position_aliases
+        }
+        for items in item_lists:
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                reported_position = self._mapping_value(
+                    item, ("position", "location", "wheel", "tire", "tyre", "name")
+                )
+                if reported_position is _MISSING:
+                    continue
+                normalized_position = self._normalized_payload_key(reported_position)
+                if not any(
+                    alias in normalized_position or normalized_position in alias
+                    for alias in normalized_positions
+                ):
+                    continue
+
+                raw_value = self._mapping_value(item, metric_aliases)
+                if raw_value is _MISSING:
+                    continue
+                unit = self._tpms_unit(metric, raw_value, item, data)
+                if isinstance(raw_value, dict):
+                    raw_value = self._mapping_value(
+                        raw_value, ("value", "data", "reading", "val")
+                    )
+                    if raw_value is _MISSING:
+                        raw_value = None
+                return True, raw_value, unit
+
+        return False, None, None
+
+    @staticmethod
+    def _normalize_tpms_measurement(
+        value: object | None, metric: str, unit: str | None
+    ) -> float | None:
+        """Normalize TPMS pressure to bar and temperature to Celsius."""
+        if value is None or isinstance(value, bool):
+            return None
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(numeric_value):
+            return None
+
+        normalized_unit = re.sub(r"[^a-z]", "", (unit or "").lower())
+        if metric == "pressure":
+            if normalized_unit in {"pa", "pascal", "pascals"}:
+                numeric_value /= 100_000
+            elif normalized_unit in {"kpa", "kilopascal", "kilopascals"}:
+                numeric_value /= 100
+            elif normalized_unit in {"psi", "lbfin", "poundspersquareinch"}:
+                numeric_value /= 14.5037738
+            elif not normalized_unit:
+                # Payload variants may represent pressure as bar, kPa, or PSI.
+                # These ranges do not overlap for a normally inflated scooter
+                # tire, so normalize conservatively when no unit is provided.
+                if numeric_value >= 100:
+                    numeric_value /= 100
+                elif numeric_value >= 10:
+                    numeric_value /= 14.5037738
+        elif normalized_unit in {"f", "fahrenheit", "degf"}:
+            numeric_value = (numeric_value - 32) * 5 / 9
+
+        return round(numeric_value, 2)
+
+    def hasTpmsMetric(self, id_field: str) -> bool:
+        """Return whether the current motor payload exposes a TPMS metric."""
+        try:
+            position, metric = id_field.split(".", 1)
+            found, _, _ = self._find_tpms_value(position, metric)
+        except (KeyError, ValueError):
+            return False
+        return found
+
+    def getDataTpms(self, id_field: str) -> float | None:
+        """Return a model-independent TPMS value."""
+        try:
+            position, metric = id_field.split(".", 1)
+            found, value, unit = self._find_tpms_value(position, metric)
+        except (KeyError, ValueError):
+            return None
+        if not found:
+            return None
+        return self._normalize_tpms_measurement(value, metric, unit)
 
     def getDataMoto(self, id_field):
         try:

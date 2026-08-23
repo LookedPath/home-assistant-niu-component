@@ -131,6 +131,7 @@ def load_integration_modules():
     const_module.IGNITION_URI = "/ignition"
     const_module.CONF_TOKEN_DATA = "token_data"
     const_module.SENSOR_TYPE_BAT = "BAT"
+    const_module.SENSOR_TYPE_BAT2 = "BAT2"
     const_module.SENSOR_TYPE_MOTO = "MOTO"
     const_module.SENSOR_TYPE_DIST = "DIST"
     const_module.SENSOR_TYPE_OVERALL = "TOTAL"

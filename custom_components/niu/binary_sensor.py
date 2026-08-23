@@ -21,7 +21,9 @@ from .const import (
     DOMAIN,
     normalize_sensor_selections,
     SENSOR_TYPE_BAT,
+    SENSOR_TYPE_BAT2,
     SENSOR_TYPE_MOTO,
+    SENSOR_LABELS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -51,11 +53,17 @@ async def async_setup_entry(
         )
     )
 
-    devices = [
-        NiuBinarySensor(coordinator, sensor, *BIN_SENSOR_TYPES[sensor])
-        for sensor in sensors_selected
-        if sensor in BIN_SENSOR_TYPES
-    ]
+    devices = []
+    for sensor in sensors_selected:
+        if sensor not in BIN_SENSOR_TYPES:
+            continue
+        sensor_config = BIN_SENSOR_TYPES[sensor]
+        if (
+            sensor_config[2] == SENSOR_TYPE_BAT2
+            and not coordinator.api.hasSecondBattery()
+        ):
+            continue
+        devices.append(NiuBinarySensor(coordinator, sensor, *sensor_config))
     async_add_entities(devices)
 
 
@@ -79,7 +87,9 @@ class NiuBinarySensor(CoordinatorEntity, BinarySensorEntity):
             f"binary_sensor.niu_scooter_{self.coordinator.metadata.sn}_{sensor_id}"
         )
         self._attr_name = (
-            f"NIU e-Scooter {self.coordinator.metadata.sensor_prefix} {name}"
+            "NIU e-Scooter "
+            f"{self.coordinator.metadata.sensor_prefix} "
+            f"{SENSOR_LABELS.get(name, name)}"
         )
         self._attr_device_class = DEVICE_CLASS_MAP.get(device_class)
         self._attr_icon = icon
@@ -94,8 +104,10 @@ class NiuBinarySensor(CoordinatorEntity, BinarySensorEntity):
     def is_on(self):
         """Return the binary sensor state."""
         value = self._get_value()
-        if value is not None:
-            self._last_is_on = bool(value)
+        if value in (True, 1, "1"):
+            self._last_is_on = True
+        elif value in (False, 0, "0"):
+            self._last_is_on = False
 
         return self._last_is_on
 
@@ -115,4 +127,6 @@ class NiuBinarySensor(CoordinatorEntity, BinarySensorEntity):
             return self.coordinator.api.getDataMoto(self._id_name)
         if self._sensor_grp == SENSOR_TYPE_BAT:
             return self.coordinator.api.getDataBat(self._id_name)
+        if self._sensor_grp == SENSOR_TYPE_BAT2:
+            return self.coordinator.api.getDataBatB(self._id_name)
         return None

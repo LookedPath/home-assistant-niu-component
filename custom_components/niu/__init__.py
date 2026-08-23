@@ -35,7 +35,9 @@ from .const import (
     DEFAULT_LANGUAGE,
     DOMAIN,
     PLATFORMS,
+    SECOND_BATTERY_EQUIVALENTS,
     SERVICE_SET_IGNITION,
+    TPMS_SENSORS,
     normalize_sensor_selections,
 )
 from .coordinator import (
@@ -238,25 +240,38 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate mutable preferences out of legacy authentication data."""
-    if entry.version > 2:
+    if entry.version > 3:
         return False
-    if entry.version == 2:
+    if entry.version == 3:
         return True
 
     auth = dict(entry.data.get(CONF_AUTH, {}))
     options = dict(entry.options)
-    options.setdefault(
-        CONF_SENSORS,
-        normalize_sensor_selections(auth.pop(CONF_SENSORS, AVAILABLE_SENSORS)),
-    )
-    options.setdefault(CONF_LANGUAGE, auth.pop(CONF_LANGUAGE, DEFAULT_LANGUAGE))
     data = dict(entry.data)
-    data[CONF_AUTH] = auth
+    if entry.version < 2:
+        options.setdefault(
+            CONF_SENSORS,
+            normalize_sensor_selections(auth.pop(CONF_SENSORS, AVAILABLE_SENSORS)),
+        )
+        options.setdefault(CONF_LANGUAGE, auth.pop(CONF_LANGUAGE, DEFAULT_LANGUAGE))
+        data[CONF_AUTH] = auth
+
+    sensors = normalize_sensor_selections(
+        options.get(CONF_SENSORS, auth.get(CONF_SENSORS, AVAILABLE_SENSORS))
+    )
+    for primary_sensor, secondary_sensor in SECOND_BATTERY_EQUIVALENTS.items():
+        if primary_sensor in sensors and secondary_sensor not in sensors:
+            sensors.append(secondary_sensor)
+    for tpms_sensor in TPMS_SENSORS:
+        if tpms_sensor not in sensors:
+            sensors.append(tpms_sensor)
+    options[CONF_SENSORS] = sensors
+
     hass.config_entries.async_update_entry(
         entry,
         data=data,
         options=options,
-        version=2,
+        version=3,
     )
-    _LOGGER.debug("Migrated NIU config entry %s to version 2", entry.entry_id)
+    _LOGGER.debug("Migrated NIU config entry %s to version 3", entry.entry_id)
     return True

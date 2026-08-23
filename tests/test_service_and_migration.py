@@ -174,7 +174,17 @@ def load_init_module():
         "DEFAULT_LANGUAGE": "en-US",
         "DOMAIN": "niu",
         "PLATFORMS": ["sensor", "switch", "binary_sensor"],
+        "SECOND_BATTERY_EQUIVALENTS": {
+            "BatteryCharge": "BatteryChargeB",
+            "IsBatteryConnected": "IsBatteryConnectedB",
+        },
         "SERVICE_SET_IGNITION": "set_scooter_ignition",
+        "TPMS_SENSORS": (
+            "TPMSFrontPressure",
+            "TPMSFrontTemperature",
+            "TPMSRearPressure",
+            "TPMSRearTemperature",
+        ),
     }
     for key, value in values.items():
         setattr(const, key, value)
@@ -255,14 +265,57 @@ class ServiceAndMigrationTest(unittest.IsolatedAsyncioTestCase):
         result = await self.module.async_migrate_entry(self.hass, entry)
 
         self.assertTrue(result)
-        self.assertEqual(entry.version, 2)
+        self.assertEqual(entry.version, 3)
         self.assertEqual(entry.data["token_data"]["access_token"], "keep")
         self.assertNotIn("language", entry.data["conf_auth"])
         self.assertEqual(entry.options["language"], "en-US")
         self.assertEqual(
             entry.options["sensors_selected"],
-            ["IsBatteryConnected", "BatteryCharge"],
+            [
+                "IsBatteryConnected",
+                "BatteryCharge",
+                "BatteryChargeB",
+                "IsBatteryConnectedB",
+                "TPMSFrontPressure",
+                "TPMSFrontTemperature",
+                "TPMSRearPressure",
+                "TPMSRearTemperature",
+            ],
         )
+
+    async def test_version_two_migration_preserves_existing_preferences(self) -> None:
+        entry = FakeEntry()
+        entry.version = 2
+        entry.data = {
+            "conf_auth": {
+                "username": "user",
+                "password": "password",
+                "scooter_id": 0,
+            },
+            "token_data": {"access_token": "keep"},
+        }
+        entry.options = {
+            "language": "it-IT",
+            "sensors_selected": ["BatteryCharge", "Longitude"],
+        }
+
+        result = await self.module.async_migrate_entry(self.hass, entry)
+
+        self.assertTrue(result)
+        self.assertEqual(entry.version, 3)
+        self.assertEqual(entry.data["token_data"]["access_token"], "keep")
+        self.assertEqual(entry.options["language"], "it-IT")
+        self.assertIn("BatteryCharge", entry.options["sensors_selected"])
+        self.assertIn("BatteryChargeB", entry.options["sensors_selected"])
+        self.assertIn("Longitude", entry.options["sensors_selected"])
+        self.assertNotIn("Latitude", entry.options["sensors_selected"])
+        for sensor in (
+            "TPMSFrontPressure",
+            "TPMSFrontTemperature",
+            "TPMSRearPressure",
+            "TPMSRearTemperature",
+        ):
+            self.assertIn(sensor, entry.options["sensors_selected"])
 
     async def test_token_persistence_does_not_reload_the_entry(self) -> None:
         entry = FakeEntry()

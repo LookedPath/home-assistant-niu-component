@@ -18,11 +18,14 @@ from .const import (
     DOMAIN,
     normalize_sensor_selections,
     SENSOR_TYPE_BAT,
+    SENSOR_TYPE_BAT2,
     SENSOR_TYPE_DIST,
     SENSOR_TYPE_MOTO,
     SENSOR_TYPE_OVERALL,
     SENSOR_TYPE_POS,
     SENSOR_TYPE_TRACK,
+    SENSOR_TYPE_TPMS,
+    SENSOR_LABELS,
     SENSOR_TYPES,
 )
 
@@ -47,11 +50,25 @@ async def async_setup_entry(
         )
     )
 
-    devices = [
-        NiuSensor(coordinator, sensor, *SENSOR_TYPES[sensor])
-        for sensor in sensors_selected
-        if sensor != "LastTrackThumb" and sensor not in BIN_SENSOR_TYPES
-    ]
+    devices = []
+    for sensor in sensors_selected:
+        if (
+            sensor == "LastTrackThumb"
+            or sensor in BIN_SENSOR_TYPES
+            or sensor not in SENSOR_TYPES
+        ):
+            continue
+        sensor_config = SENSOR_TYPES[sensor]
+        sensor_group = sensor_config[3]
+        data_field = sensor_config[2]
+        if sensor_group == SENSOR_TYPE_BAT2 and not coordinator.api.hasSecondBattery():
+            continue
+        if (
+            sensor_group == SENSOR_TYPE_TPMS
+            and not coordinator.api.hasTpmsMetric(data_field)
+        ):
+            continue
+        devices.append(NiuSensor(coordinator, sensor, *sensor_config))
     async_add_entities(devices)
 
 
@@ -76,7 +93,9 @@ class NiuSensor(CoordinatorEntity, SensorEntity):
             f"sensor.niu_scooter_{self.coordinator.metadata.sn}_{sensor_id}"
         )
         self._attr_name = (
-            f"NIU e-Scooter {self.coordinator.metadata.sensor_prefix} {name}"
+            "NIU e-Scooter "
+            f"{self.coordinator.metadata.sensor_prefix} "
+            f"{SENSOR_LABELS.get(name, name)}"
         )
         self._attr_native_unit_of_measurement = uom or None
         self._attr_device_class = device_class if device_class != "none" else None
@@ -126,6 +145,18 @@ class NiuSensor(CoordinatorEntity, SensorEntity):
                 "battery_grade": self.coordinator.api.getDataBat("gradeBattery"),
                 "centre_ctrl_batt": self.coordinator.api.getDataMoto("centreCtrlBattery"),
             }
+            if self.coordinator.api.hasSecondBattery():
+                attributes.update(
+                    {
+                        "bmsId_b": self.coordinator.api.getDataBatB("bmsId"),
+                        "battery_b": self.coordinator.api.getDataBatB(
+                            "batteryCharging"
+                        ),
+                        "battery_grade_b": self.coordinator.api.getDataBatB(
+                            "gradeBattery"
+                        ),
+                    }
+                )
             if any(value is not None for value in attributes.values()):
                 self._last_extra_attributes = attributes
 
@@ -134,6 +165,8 @@ class NiuSensor(CoordinatorEntity, SensorEntity):
     def _get_value(self):
         if self._sensor_grp == SENSOR_TYPE_BAT:
             return self.coordinator.api.getDataBat(self._id_name)
+        if self._sensor_grp == SENSOR_TYPE_BAT2:
+            return self.coordinator.api.getDataBatB(self._id_name)
         if self._sensor_grp == SENSOR_TYPE_MOTO:
             return self.coordinator.api.getDataMoto(self._id_name)
         if self._sensor_grp == SENSOR_TYPE_POS:
@@ -144,6 +177,8 @@ class NiuSensor(CoordinatorEntity, SensorEntity):
             return self.coordinator.api.getDataOverall(self._id_name)
         if self._sensor_grp == SENSOR_TYPE_TRACK:
             return self.coordinator.api.getDataTrack(self._id_name)
+        if self._sensor_grp == SENSOR_TYPE_TPMS:
+            return self.coordinator.api.getDataTpms(self._id_name)
         return None
 
     def _is_invalid_zero(self, value):
@@ -158,5 +193,8 @@ class NiuSensor(CoordinatorEntity, SensorEntity):
 
         if self._id_name == "centreCtrlBattery":
             return self.coordinator.api.getDataMoto("isConnected") is None
+
+        if self._sensor_grp == SENSOR_TYPE_BAT2:
+            return self.coordinator.api.getDataBatB("bmsId") is None
 
         return self.coordinator.api.getDataBat("bmsId") is None
