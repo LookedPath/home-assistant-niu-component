@@ -37,6 +37,10 @@ class DataUpdateCoordinator:
 class UpdateFailed(Exception):
     """Stand-in for Home Assistant's coordinator update exception."""
 
+    def __init__(self, message, *, retry_after=None):
+        super().__init__(message)
+        self.retry_after = retry_after
+
 
 class FakeHass:
     """Home Assistant subset used by the coordinator."""
@@ -65,16 +69,21 @@ class FakeApi:
         self.fetch_calls = 0
         self.committed_motor_data = None
 
-    def refresh_all_data(self):
-        return {"moto": {"data": {"isAccOn": int(self.state)}}}
+    async def async_refresh_motor(self):
+        self.motor_data = {"data": {"isAccOn": int(self.state)}}
+        return self.motor_data
+
+    def snapshot(self):
+        return {"moto": getattr(self, "motor_data", None)}
 
     def getDataMoto(self, field):
         if field == "isAccOn":
             return self.state
         return None
 
-    def setIgnition(self, ignition):
-        return self.command_result
+    async def async_set_ignition(self, ignition):
+        if not self.command_result:
+            raise RuntimeError("command rejected")
 
     def has_unsaved_token(self):
         return False
@@ -82,9 +91,12 @@ class FakeApi:
     async def async_save_token(self):
         return None
 
-    def fetch_ignition_status(self):
+    async def async_fetch_ignition_status(self):
         self.fetch_calls += 1
-        return self.confirmations.pop(0)
+        result = self.confirmations.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
 
     def commit_motor_data(self, data):
         self.committed_motor_data = data
@@ -112,16 +124,35 @@ def load_integration_modules():
     const_module.API_BASE_URL = "https://api.example.test"
     const_module.LOGIN_URI = "/login"
     const_module.MOTOR_INDEX_API_URI = "/motor"
+    const_module.MOTOR_BATTERY_API_URI = "/battery"
+    const_module.MOTOINFO_ALL_API_URI = "/overall"
+    const_module.MOTOINFO_LIST_API_URI = "/vehicles"
+    const_module.TRACK_LIST_API_URI = "/track"
+    const_module.IGNITION_URI = "/ignition"
+    const_module.CONF_TOKEN_DATA = "token_data"
+    const_module.SENSOR_TYPE_BAT = "BAT"
+    const_module.SENSOR_TYPE_MOTO = "MOTO"
+    const_module.SENSOR_TYPE_DIST = "DIST"
+    const_module.SENSOR_TYPE_OVERALL = "TOTAL"
+    const_module.SENSOR_TYPE_POS = "POSITION"
+    const_module.SENSOR_TYPE_TRACK = "TRACK"
+    const_module.SENSOR_TYPES = {
+        "BatteryCharge": ["id", "%", "battery", "BAT"],
+        "Latitude": ["id", "", "lat", "POSITION"],
+        "DaysInUse": ["id", "days", "days", "TOTAL"],
+        "LastTrackDistance": ["id", "m", "distance", "TRACK"],
+    }
+    const_module.BIN_SENSOR_TYPES = {
+        "ScooterConnected": ["id", "connected", "MOTO"]
+    }
     const_module.IGNITION_CONFIRMATION_POLL_DELAYS = (0, 0)
     const_module.UPDATE_INTERVAL = timedelta(minutes=15)
     sys.modules[const_module.__name__] = const_module
 
-    requests_module = types.ModuleType("requests")
-    requests_module.RequestException = Exception
-    sys.modules["requests"] = requests_module
-
     httpx_module = types.ModuleType("httpx")
     httpx_module.HTTPError = Exception
+    httpx_module.RequestError = Exception
+    httpx_module.AsyncClient = object
     sys.modules["httpx"] = httpx_module
 
     homeassistant = types.ModuleType("homeassistant")
@@ -130,6 +161,8 @@ def load_integration_modules():
     config_entries.ConfigEntry = type("ConfigEntry", (), {})
     core = types.ModuleType("homeassistant.core")
     core.HomeAssistant = type("HomeAssistant", (), {})
+    exceptions = types.ModuleType("homeassistant.exceptions")
+    exceptions.ConfigEntryAuthFailed = type("ConfigEntryAuthFailed", (Exception,), {})
     helpers = types.ModuleType("homeassistant.helpers")
     helpers.__path__ = []
     update_coordinator = types.ModuleType(
@@ -142,6 +175,7 @@ def load_integration_modules():
             "homeassistant": homeassistant,
             "homeassistant.config_entries": config_entries,
             "homeassistant.core": core,
+            "homeassistant.exceptions": exceptions,
             "homeassistant.helpers": helpers,
             "homeassistant.helpers.update_coordinator": update_coordinator,
         }
@@ -178,21 +212,27 @@ class IgnitionConfirmationTest(unittest.IsolatedAsyncioTestCase):
             self.coordinator_module.NiuMetadata(
                 sn="TEST-SN", sensor_prefix="Test scooter"
             ),
+            {self.coordinator_module.SENSOR_TYPE_MOTO},
         )
         return coordinator, entry
 
-    def test_targeted_fetch_does_not_mutate_cache_before_commit(self) -> None:
+    async def test_targeted_fetch_does_not_mutate_cache_before_commit(self) -> None:
         """Reading confirmation data must not itself publish the new state."""
-        api = self.api_module.NiuApi("user", "password", 0, "en-US")
+        api = self.api_module.NiuApi(
+            "user", "password", 0, "en-US", client=object()
+        )
         previous = {"data": {"isAccOn": 0}}
         confirmed = {"data": {"isAccOn": 1}}
         api.dataMoto = previous
         api.dataBat = None
         api.dataMotoInfo = None
         api.dataTrackInfo = None
-        api.get_info = lambda path: confirmed
+        async def get_info(path):
+            return confirmed
 
-        result = api.fetch_ignition_status()
+        api._get_info = get_info
+
+        result = await api.async_fetch_ignition_status()
 
         self.assertEqual(result, (True, confirmed))
         self.assertIs(api.dataMoto, previous)
@@ -241,6 +281,25 @@ class IgnitionConfirmationTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(coordinator.updated_data, [])
         entry.unload_callback()
 
+    async def test_transient_confirmation_error_does_not_end_polling(self) -> None:
+        confirmed = {"data": {"isAccOn": 1}}
+        api = FakeApi(
+            state=False,
+            confirmations=[
+                self.api_module.NiuConnectionError("temporary outage"),
+                (True, confirmed),
+            ],
+        )
+        coordinator, entry = self.make_coordinator(api)
+        coordinator._accept_ignition_state(False)
+
+        await coordinator.async_set_ignition(True)
+        await coordinator._ignition_confirmation_task
+
+        self.assertTrue(coordinator.ignition_state)
+        self.assertEqual(api.fetch_calls, 2)
+        entry.unload_callback()
+
     async def test_regular_refresh_cannot_publish_stale_pending_state(self) -> None:
         """A full refresh during confirmation must retain the prior state."""
         api = FakeApi(state=True, confirmations=[])
@@ -254,6 +313,79 @@ class IgnitionConfirmationTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(coordinator.ignition_state)
         entry.unload_callback()
         await asyncio.sleep(0)
+
+    def test_required_groups_include_only_selected_endpoints_and_motor(self) -> None:
+        groups = self.coordinator_module.required_sensor_groups(
+            ["BatteryCharge", "LastTrackDistance"]
+        )
+
+        self.assertEqual(groups, {"MOTO", "BAT", "TRACK"})
+
+    async def test_cached_data_does_not_turn_total_failure_into_success(self) -> None:
+        api = FakeApi(state=False)
+        api.motor_data = {"data": {"isAccOn": 0}}
+
+        async def fail():
+            raise self.api_module.NiuConnectionError("offline")
+
+        api.async_refresh_motor = fail
+        api.async_refresh_battery = fail
+        coordinator, entry = self.make_coordinator(api)
+        coordinator.sensor_groups = frozenset({"MOTO", "BAT"})
+
+        with self.assertRaises(UpdateFailed):
+            await coordinator._async_update_data()
+
+        self.assertEqual(api.snapshot()["moto"]["data"]["isAccOn"], 0)
+        entry.unload_callback()
+
+    async def test_partial_failure_preserves_cache_but_updates_available_data(self) -> None:
+        api = FakeApi(state=False)
+        api.motor_data = {"data": {"isAccOn": 0}}
+        calls = []
+
+        async def fail_motor():
+            calls.append("motor")
+            raise self.api_module.NiuConnectionError("motor unavailable")
+
+        async def update_battery():
+            calls.append("battery")
+            api.battery_data = {"data": {"charge": 80}}
+
+        api.async_refresh_motor = fail_motor
+        api.async_refresh_battery = update_battery
+        original_snapshot = api.snapshot
+        api.snapshot = lambda: {
+            **original_snapshot(),
+            "battery": getattr(api, "battery_data", None),
+        }
+        coordinator, entry = self.make_coordinator(api)
+        coordinator.sensor_groups = frozenset({"MOTO", "BAT"})
+
+        snapshot = await coordinator._async_update_data()
+
+        self.assertEqual(calls, ["motor", "battery"])
+        self.assertEqual(snapshot["battery"]["data"]["charge"], 80)
+        self.assertIn("motor", coordinator.last_endpoint_errors)
+        entry.unload_callback()
+
+    async def test_rate_limit_retry_after_is_clamped(self) -> None:
+        api = FakeApi(state=False)
+
+        async def rate_limited():
+            raise self.api_module.NiuRateLimitError(5)
+
+        api.async_refresh_motor = rate_limited
+        coordinator, entry = self.make_coordinator(api)
+
+        with self.assertRaises(UpdateFailed) as raised:
+            await coordinator._async_update_data()
+
+        self.assertEqual(
+            raised.exception.retry_after,
+            self.coordinator_module.MIN_RATE_LIMIT_BACKOFF,
+        )
+        entry.unload_callback()
 
 
 if __name__ == "__main__":

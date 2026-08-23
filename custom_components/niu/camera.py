@@ -19,7 +19,7 @@ GET_IMAGE_TIMEOUT = 10
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
-    coordinator = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
+    coordinator = entry.runtime_data
     camera_name = coordinator.metadata.sensor_prefix + " Last Track Camera"
 
     camera_config = {

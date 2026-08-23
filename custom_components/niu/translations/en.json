@@ -1,43 +1,90 @@
 {
-    "config": {
-        "abort": {
-            "already_configured": "Device is already configured"
+  "title": "NIU e-Scooter Integration",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect your NIU account",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "language": "Notification language"
+        }
+      },
+      "vehicle": {
+        "title": "Choose a scooter",
+        "data": {
+          "scooter_sn": "Scooter",
+          "sensors_selected": "Sensors"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reconnect your NIU account",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "language": "Notification language"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure NIU scooter",
+        "data": {
+          "scooter_sn": "Scooter",
+          "sensors_selected": "Sensors"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to NIU",
+      "invalid_auth": "Invalid NIU credentials",
+      "no_vehicles": "No usable scooters were found in this NIU account",
+      "invalid_vehicle": "The selected scooter is no longer available",
+      "vehicle_not_found": "This scooter is no longer associated with the NIU account",
+      "already_configured": "This scooter is already configured",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This scooter is already configured",
+      "reauth_successful": "NIU account reconnected successfully",
+      "reconfigure_successful": "NIU scooter reconfigured successfully",
+      "unknown": "The flow could not be continued"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure NIU integration options",
+        "data": {
+          "sensors_selected": "Sensors",
+          "language": "Notification language"
+        }
+      }
+    }
+  },
+  "services": {
+    "set_scooter_ignition": {
+      "name": "Set NIU scooter ignition",
+      "description": "Turns a NIU scooter on or off. Its state changes only after NIU confirms the command.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Scooter",
+          "description": "The NIU integration entry to control."
         },
-        "error": {
-            "cannot_connect": "Failed to connect",
-            "invalid_auth": "Invalid authentication",
-            "invalid_path": "Invalid path",
-            "unknown": "Unexpected error"
+        "scooterId": {
+          "name": "Legacy scooter ID",
+          "description": "Legacy vehicle-list index. Prefer Scooter for new automations."
         },
-        "step": {
-            "user": {
-                "data": {
-                    "username": "Username",
-                    "password": "Password",
-                    "scooter_id": "Scooter ID",
-                    "sensors_selected": "Select which sensor to integrate",
-                    "language": "This will affect the language of the notifications you'll receive in the NIU app"
-                }
-            }
+        "ignition": {
+          "name": "Ignition",
+          "description": "Whether the scooter should be turned on or off."
         }
-    },
-    "options": {
-        "step": {
-            "init": {
-                "data": {
-                    "sensors_selected": "Select which sensor to integrate",
-                    "language": "This will affect the language of the notifications you'll receive in the NIU app"
-                },
-                "title": "Configure NIU Integration Options"
-            }
-        }
-    },
-    "entity": {
-        "switch": {
-            "ignition": {
-                "name": "Ignition"
-            }
-        }
-    },
-    "title": "Niu Integration"
+      }
+    }
+  },
+  "entity": {
+    "switch": {
+      "ignition": {
+        "name": "Ignition"
+      }
+    }
+  }
 }

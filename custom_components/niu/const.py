@@ -16,12 +16,17 @@ PLATFORMS = ["sensor", "switch", "binary_sensor"]
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_SCOOTER_ID = "scooter_id"
+CONF_SCOOTER_SN = "scooter_sn"
+CONF_SCOOTER_NAME = "scooter_name"
 CONF_AUTH = "conf_auth"
 CONF_SENSORS = "sensors_selected"
 CONF_LANGUAGE = "language"
 CONF_TOKEN_DATA = "token_data"
-DATA_API = "api"
-DATA_COORDINATOR = "coordinator"
+
+SERVICE_SET_IGNITION = "set_scooter_ignition"
+ATTR_IGNITION = "ignition"
+ATTR_CONFIG_ENTRY_ID = "config_entry_id"
+ATTR_SCOOTER_ID = "scooterId"
 
 UPDATE_INTERVAL = timedelta(minutes=15)
 

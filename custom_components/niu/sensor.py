@@ -11,10 +11,10 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    AVAILABLE_SENSORS,
     BIN_SENSOR_TYPES,
     CONF_AUTH,
     CONF_SENSORS,
-    DATA_COORDINATOR,
     DOMAIN,
     normalize_sensor_selections,
     SENSOR_TYPE_BAT,
@@ -40,8 +40,12 @@ async def async_setup_entry(
         _LOGGER.error("No authentication data found for NIU sensors")
         return
 
-    coordinator = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
-    sensors_selected = normalize_sensor_selections(niu_auth.get(CONF_SENSORS, []))
+    coordinator = entry.runtime_data
+    sensors_selected = normalize_sensor_selections(
+        entry.options.get(
+            CONF_SENSORS, niu_auth.get(CONF_SENSORS, AVAILABLE_SENSORS)
+        )
+    )
 
     devices = [
         NiuSensor(coordinator, sensor, *SENSOR_TYPES[sensor])

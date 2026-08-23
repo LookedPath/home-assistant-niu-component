@@ -1,19 +1,32 @@
 set_scooter_ignition:
   name: Set NIU Scooter Ignition
+  description: >-
+    Turn a NIU scooter on or off. Its state changes only after NIU confirms
+    the command.
   fields:
+    config_entry_id:
+      name: Scooter
+      description: >-
+        The NIU integration entry to control. Required when multiple entries
+        could match.
+      required: false
+      selector:
+        config_entry:
+          integration: niu
     scooterId:
-      description: The scooter ID
-      required: True
+      name: Legacy scooter ID
+      description: Legacy vehicle-list index. Prefer Scooter for new automations.
+      required: false
       example: 0
-      default: 0
       selector:
         number:
           min: 0
           max: 100
           mode: "box"
     ignition:
-      description: The ignition state
-      required: True
+      name: Ignition
+      description: Whether the scooter should be turned on or off.
+      required: true
       example: True
       default: False
       selector:
