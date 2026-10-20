@@ -46,6 +46,8 @@ from .coordinator import (
     required_sensor_groups,
 )
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 _LOGGER = logging.getLogger(__name__)
 
 SERVICE_SET_IGNITION_SCHEMA = vol.Schema(

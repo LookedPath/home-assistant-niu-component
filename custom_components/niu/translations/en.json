@@ -69,10 +69,6 @@
           "name": "Scooter",
           "description": "The NIU integration entry to control."
         },
-        "scooterId": {
-          "name": "Legacy scooter ID",
-          "description": "Legacy vehicle-list index. Prefer Scooter for new automations."
-        },
         "ignition": {
           "name": "Ignition",
           "description": "Whether the scooter should be turned on or off."

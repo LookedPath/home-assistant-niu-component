@@ -12,12 +12,6 @@
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/LookedPath/home-assistant-niu-component/",
-  "hacs": {
-    "branches": [
-      "master",
-      "dev"
-    ]
-  },
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/LookedPath/home-assistant-niu-component/issues",
   "requirements": [],

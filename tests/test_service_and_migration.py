@@ -135,6 +135,7 @@ def load_init_module():
     helpers = types.ModuleType("homeassistant.helpers")
     helpers.__path__ = []
     cv = types.ModuleType("homeassistant.helpers.config_validation")
+    cv.config_entry_only_config_schema = lambda domain: {domain: "config_entry_only"}
     cv.boolean = bool
     cv.string = str
     httpx_client = types.ModuleType("homeassistant.helpers.httpx_client")
@@ -229,6 +230,18 @@ class ServiceAndMigrationTest(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(self.hass.services.registrations, 1)
+        self.assertEqual(first.commands, [])
+        self.assertEqual(second.commands, [True])
+
+    async def test_legacy_scooter_id_still_routes_to_one_entry(self) -> None:
+        await self.module.async_setup(self.hass, {})
+        first = FakeCoordinator("first", 0)
+        second = FakeCoordinator("second", 1)
+        self.hass.data["niu"] = {"first": first, "second": second}
+        handler = self.hass.services.handlers[("niu", "set_scooter_ignition")]
+
+        await handler(types.SimpleNamespace(data={"scooterId": 1, "ignition": True}))
+
         self.assertEqual(first.commands, [])
         self.assertEqual(second.commands, [True])
 
