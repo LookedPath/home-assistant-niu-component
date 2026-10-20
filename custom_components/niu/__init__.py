@@ -198,6 +198,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry_updates:
         hass.config_entries.async_update_entry(entry, **entry_updates)
 
+    from .migration import migrate_battery_entities
+
+    migrate_battery_entities(hass, entry, vehicle.serial)
+
     coordinator = NiuDataUpdateCoordinator(
         hass,
         entry,
@@ -240,9 +244,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate mutable preferences out of legacy authentication data."""
-    if entry.version > 3:
+    if entry.version > 4:
         return False
+    if entry.version == 4:
+        return True
     if entry.version == 3:
+        options = dict(entry.options)
+        options[CONF_SENSORS] = _entry_sensors(entry)
+        hass.config_entries.async_update_entry(entry, options=options, version=4)
         return True
 
     auth = dict(entry.data.get(CONF_AUTH, {}))
@@ -271,7 +280,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry,
         data=data,
         options=options,
-        version=3,
+        version=4,
     )
-    _LOGGER.debug("Migrated NIU config entry %s to version 3", entry.entry_id)
+    _LOGGER.debug("Migrated NIU config entry %s to version 4", entry.entry_id)
     return True

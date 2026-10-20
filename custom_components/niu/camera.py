@@ -12,10 +12,9 @@ import httpx
 
 from homeassistant.components.camera import Camera
 from homeassistant.helpers.httpx_client import get_async_client
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
 from .coordinator import NiuDataUpdateCoordinator
+from .entity import NiuCoordinatorEntity
 
 _LOGGER = logging.getLogger(__name__)
 GET_IMAGE_TIMEOUT = 5
@@ -116,13 +115,13 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     async_add_entities([LastTrackCamera(hass, entry.runtime_data)])
 
 
-class LastTrackCamera(CoordinatorEntity, Camera):
+class LastTrackCamera(NiuCoordinatorEntity, Camera):
     """Still-image camera showing the latest NIU track thumbnail."""
 
     _attr_is_streaming = False
 
     def __init__(self, hass, coordinator: NiuDataUpdateCoordinator) -> None:
-        CoordinatorEntity.__init__(self, coordinator)
+        NiuCoordinatorEntity.__init__(self, coordinator)
         Camera.__init__(self)
         self.hass = hass
         camera_name = coordinator.metadata.sensor_prefix + " Last Track Camera"
@@ -143,17 +142,6 @@ class LastTrackCamera(CoordinatorEntity, Camera):
     def available(self) -> bool:
         """Keep serving a cached image during a temporary NIU outage."""
         return self.coordinator.last_update_success or self._last_image is not None
-
-    @property
-    def device_info(self):
-        """Return the scooter device represented by this camera."""
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.metadata.sn)},
-            "name": self.coordinator.metadata.sensor_prefix,
-            "manufacturer": "NIU",
-            "model": "Electric Scooter",
-            "sw_version": "1.0",
-        }
 
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None

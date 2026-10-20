@@ -137,7 +137,7 @@ def _flow_error(err: Exception) -> str:
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for a NIU scooter."""
 
-    VERSION = 3
+    VERSION = 4
 
     def __init__(self) -> None:
         self._api: NiuApi | None = None

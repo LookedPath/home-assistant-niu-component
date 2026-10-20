@@ -10,10 +10,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import NiuApiError, NiuAuthenticationError
-from .const import CONF_AUTH, DOMAIN
+from .const import CONF_AUTH
+from .entity import NiuCoordinatorEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ async def async_setup_entry(
     async_add_entities([NiuIgnitionSwitch(coordinator)])
 
 
-class NiuIgnitionSwitch(CoordinatorEntity, SwitchEntity):
+class NiuIgnitionSwitch(NiuCoordinatorEntity, SwitchEntity):
     """Representation of NIU scooter ignition switch."""
 
     def __init__(self, coordinator) -> None:
@@ -61,17 +61,6 @@ class NiuIgnitionSwitch(CoordinatorEntity, SwitchEntity):
             self.coordinator.ignition_state is not None
             or self.coordinator.api.getDataMoto("isAccOn") is not None
         )
-
-    @property
-    def device_info(self):
-        """Return device info."""
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.metadata.sn)},
-            "name": self.coordinator.metadata.sensor_prefix,
-            "manufacturer": "NIU",
-            "model": "Electric Scooter",
-            "sw_version": "1.0",
-        }
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""

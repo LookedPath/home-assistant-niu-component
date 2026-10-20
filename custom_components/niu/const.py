@@ -58,6 +58,8 @@ SENSOR_TYPE_TPMS = "TPMS"
 SENSOR_TYPE_TRACK = "TRACK"
 
 LEGACY_SENSOR_SELECTIONS = {
+    "BatteryChargeA": "BatteryCharge",
+    "BatteryGradeA": "BatteryGrade",
     "Isconnected": "IsBatteryConnected",
 }
 

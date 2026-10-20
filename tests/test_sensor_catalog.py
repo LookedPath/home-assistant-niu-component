@@ -78,6 +78,14 @@ class SensorCatalogTest(unittest.TestCase):
         self.assertIn("LastTrackThumb", self.const.AVAILABLE_SENSORS)
         self.assertNotIn("LastTrackThumb", self.const.DEFAULT_SENSORS)
 
+    def test_upstream_battery_names_normalize_without_duplicates(self) -> None:
+        self.assertEqual(
+            self.const.normalize_sensor_selections(
+                ["BatteryChargeA", "BatteryCharge", "BatteryGradeA", "BatteryChargeB"]
+            ),
+            ["BatteryCharge", "BatteryGrade", "BatteryChargeB"],
+        )
+
     def test_model_aware_sensors_are_in_the_catalogue(self) -> None:
         expected = {
             "BatteryChargeB",

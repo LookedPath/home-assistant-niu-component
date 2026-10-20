@@ -54,8 +54,24 @@ Notes:
 - Existing entries are migrated automatically from their old vehicle-list index to the scooter's stable serial number.
 - New entries leave GPS coordinates and ride-history entities disabled by default; they remain available from the integration options.
 - Existing primary-battery selections automatically gain their matching battery-B entity on dual-battery models.
+- Upstream `BatteryChargeA` and `BatteryGradeA` selections are migrated automatically. Their registered entity IDs are preserved when adopting this fork, unless a matching canonical entity already exists.
 - For the `niu.set_scooter_ignition` action, select the NIU config entry when more than one scooter is configured. Legacy `scooterId` calls continue to work when they identify exactly one loaded entry.
 
 ## Known bugs
 
 None but if you encounter any please let me know
+
+## Development
+
+Run the isolated unit suite with Python 3.12 or newer:
+
+```sh
+python -m unittest discover -s tests -p "test_*.py" -v
+```
+
+Both GitHub Actions workflows are triggered by pushes and pull requests;
+hassfest is also triggered daily. Their jobs use the `manual-approval`
+environment and wait for its required approval before executing.
+
+Tests use Home Assistant and HTTP client stand-ins; they do not contact NIU or replace testing in a running
+Home Assistant instance.

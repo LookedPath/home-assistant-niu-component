@@ -11,20 +11,19 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     AVAILABLE_SENSORS,
     BIN_SENSOR_TYPES,
     CONF_AUTH,
     CONF_SENSORS,
-    DOMAIN,
     normalize_sensor_selections,
     SENSOR_TYPE_BAT,
     SENSOR_TYPE_BAT2,
     SENSOR_TYPE_MOTO,
     SENSOR_LABELS,
 )
+from .entity import NiuCoordinatorEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -67,7 +66,7 @@ async def async_setup_entry(
     async_add_entities(devices)
 
 
-class NiuBinarySensor(CoordinatorEntity, BinarySensorEntity):
+class NiuBinarySensor(NiuCoordinatorEntity, BinarySensorEntity):
     """Representation of a NIU binary sensor."""
 
     def __init__(
@@ -110,17 +109,6 @@ class NiuBinarySensor(CoordinatorEntity, BinarySensorEntity):
             self._last_is_on = False
 
         return self._last_is_on
-
-    @property
-    def device_info(self):
-        """Return device info for the scooter."""
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.metadata.sn)},
-            "name": self.coordinator.metadata.sensor_prefix,
-            "manufacturer": "NIU",
-            "model": "Electric Scooter",
-            "sw_version": "1.0",
-        }
 
     def _get_value(self):
         if self._sensor_grp == SENSOR_TYPE_MOTO:

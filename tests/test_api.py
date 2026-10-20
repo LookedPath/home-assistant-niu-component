@@ -281,6 +281,50 @@ class NiuApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(api.getDataTpms("rear.pressure"), 2.6)
         self.assertEqual(api.getDataTpms("rear.temperature"), 32.0)
 
+    async def test_concurrent_unauthorized_requests_share_token_recovery(self):
+        import asyncio
+
+        ready = asyncio.Event()
+        arrivals = 0
+        client = FakeClient(posts=[FakeResponse(200, self.token_payload())])
+        api = self.api_with_valid_token(client)
+
+        async def request(method, url, **kwargs):
+            nonlocal arrivals
+            if kwargs["headers"]["token"] == "old":
+                arrivals += 1
+                if arrivals == 2:
+                    ready.set()
+                await ready.wait()
+                return FakeResponse(401)
+            return FakeResponse(200, {"status": 0, "data": {"ok": True}})
+
+        client.request = request
+        results = await asyncio.wait_for(asyncio.gather(
+            api._authenticated_request("GET", "/data"),
+            api._authenticated_request("GET", "/data"),
+        ), timeout=1)
+        self.assertTrue(all(result["data"]["ok"] for result in results))
+        self.assertEqual(len(client.post_calls), 1)
+
+    async def test_vehicle_list_uses_configured_locale_headers(self):
+        for language, identifier in [("en-GB", "Overseas"), ("zh-CN", "Domestic")]:
+            with self.subTest(language=language):
+                client = FakeClient(requests=[FakeResponse(200, {
+                    "status": 0, "data": {"items": [
+                        {"sn_id": "A", "scooter_name": "First"}
+                    ]}
+                })])
+                api = self.api_with_valid_token(client)
+                api.language = language
+                api.timezone = "Europe/Rome"
+                await api.async_get_vehicles()
+                headers = client.request_calls[0][2]["headers"]
+                self.assertEqual(headers["Accept-Language"], language)
+                agent = headers.get("user-agent", headers.get("User-Agent", ""))
+                self.assertIn("clientIdentifier=" + identifier, agent)
+                self.assertIn("timezone=Europe/Rome", agent)
+
 
 if __name__ == "__main__":
     unittest.main()

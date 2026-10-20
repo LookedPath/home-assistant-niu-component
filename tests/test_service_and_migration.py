@@ -265,7 +265,7 @@ class ServiceAndMigrationTest(unittest.IsolatedAsyncioTestCase):
         result = await self.module.async_migrate_entry(self.hass, entry)
 
         self.assertTrue(result)
-        self.assertEqual(entry.version, 3)
+        self.assertEqual(entry.version, 4)
         self.assertEqual(entry.data["token_data"]["access_token"], "keep")
         self.assertNotIn("language", entry.data["conf_auth"])
         self.assertEqual(entry.options["language"], "en-US")
@@ -302,7 +302,7 @@ class ServiceAndMigrationTest(unittest.IsolatedAsyncioTestCase):
         result = await self.module.async_migrate_entry(self.hass, entry)
 
         self.assertTrue(result)
-        self.assertEqual(entry.version, 3)
+        self.assertEqual(entry.version, 4)
         self.assertEqual(entry.data["token_data"]["access_token"], "keep")
         self.assertEqual(entry.options["language"], "it-IT")
         self.assertIn("BatteryCharge", entry.options["sensors_selected"])

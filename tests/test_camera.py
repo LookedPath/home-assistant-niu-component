@@ -67,6 +67,12 @@ def load_camera_module():
     sys.modules["custom_components"] = custom_components
     sys.modules["custom_components.niu"] = niu_package
 
+    httpx = types.ModuleType("httpx")
+    httpx.RequestError = type("RequestError", (Exception,), {})
+    httpx.TimeoutException = type("TimeoutException", (httpx.RequestError,), {})
+    httpx.HTTPStatusError = type("HTTPStatusError", (Exception,), {})
+    sys.modules["httpx"] = httpx
+
     homeassistant = types.ModuleType("homeassistant")
     homeassistant.__path__ = []
     components = types.ModuleType("homeassistant.components")
@@ -178,6 +184,44 @@ class CameraTest(unittest.IsolatedAsyncioTestCase):
         entity = add_entities.call_args.args[0][0]
         self.assertIs(entity.coordinator, coordinator)
         self.assertEqual(entity._attr_unique_id, "MQi Last Track Camera")
+
+    async def test_fallback_time_budget_preserves_cache_and_throttles_retry(self):
+        import asyncio
+
+        camera = self.module.LastTrackCamera(object(), FakeCoordinator(
+            "https://app-api-fk.niu.com/track/thumb/private-ride?token=secret"
+        ))
+        camera._last_image = PNG_IMAGE
+
+        async def slow_get(*args, **kwargs):
+            await asyncio.sleep(1)
+
+        client = types.SimpleNamespace(get=AsyncMock(side_effect=slow_get))
+        with (
+            patch.object(self.module, "get_async_client", return_value=client),
+            patch.object(self.module, "GET_IMAGE_TOTAL_TIMEOUT", 0.01),
+        ):
+            self.assertEqual(await camera.async_camera_image(), PNG_IMAGE)
+            self.assertEqual(await camera.async_camera_image(), PNG_IMAGE)
+        client.get.assert_awaited_once()
+        self.assertEqual(camera._failed_url, camera.coordinator.api.url)
+
+    async def test_http_error_logging_does_not_expose_private_url(self):
+        url = "https://example.test/track/private-ride?token=super-secret"
+        response = FakeResponse()
+        error = self.module.httpx.HTTPStatusError("Failed " + url)
+        response.raise_for_status = Mock(side_effect=error)
+        client = types.SimpleNamespace(get=AsyncMock(return_value=response))
+        camera = self.module.LastTrackCamera(object(), FakeCoordinator(url))
+        with (
+            patch.object(self.module, "get_async_client", return_value=client),
+            self.assertLogs(self.module._LOGGER, level="DEBUG") as logs,
+        ):
+            self.assertIsNone(await camera.async_camera_image())
+        output = " ".join(logs.output)
+        self.assertNotIn("private-ride", output)
+        self.assertNotIn("super-secret", output)
+        self.assertNotIn(url, output)
 
 
 if __name__ == "__main__":

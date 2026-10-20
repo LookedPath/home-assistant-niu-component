@@ -286,7 +286,9 @@ class NiuApi:
 
     async def async_get_vehicles(self) -> list[NiuVehicle]:
         """Return the vehicles associated with the account."""
-        payload = await self._authenticated_request("GET", MOTOINFO_LIST_API_URI)
+        payload = await self._authenticated_request(
+            "GET", MOTOINFO_LIST_API_URI, headers=self._mobile_headers()
+        )
         try:
             items = payload["data"]["items"]
         except (KeyError, TypeError) as err:

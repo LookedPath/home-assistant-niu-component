@@ -8,14 +8,12 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     AVAILABLE_SENSORS,
     BIN_SENSOR_TYPES,
     CONF_AUTH,
     CONF_SENSORS,
-    DOMAIN,
     normalize_sensor_selections,
     SENSOR_TYPE_BAT,
     SENSOR_TYPE_BAT2,
@@ -28,6 +26,7 @@ from .const import (
     SENSOR_LABELS,
     SENSOR_TYPES,
 )
+from .entity import NiuCoordinatorEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -72,7 +71,7 @@ async def async_setup_entry(
     async_add_entities(devices)
 
 
-class NiuSensor(CoordinatorEntity, SensorEntity):
+class NiuSensor(NiuCoordinatorEntity, SensorEntity):
     """Representation of a NIU sensor."""
 
     def __init__(
@@ -116,17 +115,6 @@ class NiuSensor(CoordinatorEntity, SensorEntity):
             self._last_native_value = value
 
         return self._last_native_value
-
-    @property
-    def device_info(self):
-        """Return device info for the scooter."""
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.metadata.sn)},
-            "name": self.coordinator.metadata.sensor_prefix,
-            "manufacturer": "NIU",
-            "model": "Electric Scooter",
-            "sw_version": "1.0",
-        }
 
     @property
     def extra_state_attributes(self):
