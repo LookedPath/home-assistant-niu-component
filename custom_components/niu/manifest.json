@@ -15,5 +15,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/LookedPath/home-assistant-niu-component/issues",
   "requirements": [],
-  "version": "2.3.0-alpha.2"
+  "version": "2.4.0-alpha.1"
 }
