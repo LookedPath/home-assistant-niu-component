@@ -29,6 +29,9 @@ class DataUpdateCoordinator:
         self.data = None
         self.updated_data = []
 
+    def async_update_listeners(self):
+        pass
+
     def async_set_updated_data(self, data) -> None:
         self.data = data
         self.updated_data.append(data)
@@ -56,13 +59,19 @@ class FakeEntry:
     """Config entry subset used to register unload cleanup."""
 
     def async_on_unload(self, callback) -> None:
-        self.unload_callback = callback
+        previous = getattr(self, "unload_callback", lambda: None)
+        def unload():
+            previous()
+            callback()
+        self.unload_callback = unload
 
 
 class FakeApi:
     """Controllable NIU API used by confirmation tests."""
 
     def __init__(self, *, state=False, confirmations=None) -> None:
+        self.refreshed_battery_compartments = {"compartmentA"}
+        self.battery_errors = {}
         self.state = state
         self.confirmations = list(confirmations or [])
         self.command_result = True
@@ -133,6 +142,7 @@ def load_integration_modules():
     const_module.SENSOR_TYPE_BAT = "BAT"
     const_module.SENSOR_TYPE_BAT2 = "BAT2"
     const_module.SENSOR_TYPE_MOTO = "MOTO"
+    const_module.SENSOR_TYPE_TPMS = "TPMS"
     const_module.SENSOR_TYPE_DIST = "DIST"
     const_module.SENSOR_TYPE_OVERALL = "TOTAL"
     const_module.SENSOR_TYPE_POS = "POSITION"

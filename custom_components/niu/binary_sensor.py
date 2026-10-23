@@ -97,7 +97,7 @@ class NiuBinarySensor(NiuCoordinatorEntity, BinarySensorEntity):
     @property
     def available(self):
         """Return entity availability based on coordinator state."""
-        return self.coordinator.last_update_success or self._last_is_on is not None
+        return self.coordinator.is_group_fresh(self._sensor_grp)
 
     @property
     def is_on(self):

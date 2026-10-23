@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
@@ -177,6 +178,9 @@ class NiuApi:
         self.entry = entry
         self._client = client
 
+        self.battery_errors: dict[str, NiuApiError] = {}
+        self.refreshed_battery_compartments: set[str] = set()
+        self.battery_structure: dict[str, Any] = {}
         self.dataBat: dict[str, Any] | None = None
         self.dataMoto: dict[str, Any] | None = None
         self.dataMotoInfo: dict[str, Any] | None = None
@@ -538,9 +542,89 @@ class NiuApi:
 
     async def async_refresh_battery(self) -> dict[str, Any]:
         """Refresh battery data and return it."""
-        data = await self._get_info(MOTOR_BATTERY_API_URI)
-        self.dataBat = data
-        return data
+        self.refreshed_battery_compartments = set()
+        self.battery_errors = {}
+        payload = await self._get_info(MOTOR_BATTERY_API_URI)
+        data = payload.get("data")
+        batteries = data.get("batteries") if isinstance(data, dict) else None
+        self.battery_structure = {
+            "data_type": type(data).__name__,
+            "batteries_type": type(batteries).__name__,
+        }
+        if not isinstance(batteries, dict):
+            raise NiuResponseError("NIU battery response has no battery compartments")
+
+        previous = (self.dataBat or {}).get("data", {}).get("batteries", {})
+        merged = deepcopy(payload)
+        merged_batteries = merged["data"]["batteries"]
+        expected = {"compartmentA"}
+        if (
+            "compartmentB" in batteries
+            or "compartmentB" in previous
+            or data.get("isDoubleBattery") in (True, 1, "1")
+        ):
+            expected.add("compartmentB")
+        for compartment in sorted(expected):
+            reading = batteries.get(compartment)
+            self.battery_structure[compartment] = (
+                {
+                    field: type(reading.get(field)).__name__
+                    for field in (
+                        "bmsId", "isConnected", "batteryCharging", "gradeBattery"
+                    )
+                }
+                if isinstance(reading, dict)
+                else {"type": type(reading).__name__}
+            )
+            try:
+                merged_batteries[compartment] = self._validate_battery(reading)
+            except NiuResponseError as err:
+                self.battery_errors[compartment] = err
+                if compartment in previous:
+                    merged_batteries[compartment] = deepcopy(previous[compartment])
+                else:
+                    merged_batteries.pop(compartment, None)
+            else:
+                self.refreshed_battery_compartments.add(compartment)
+
+        if not self.refreshed_battery_compartments:
+            raise NiuResponseError(
+                "; ".join(
+                    f"{name}: {error}" for name, error in self.battery_errors.items()
+                )
+            )
+        self.dataBat = merged
+        return merged
+
+    @staticmethod
+    def _validate_battery(reading: object) -> dict[str, Any]:
+        """Accept real empty batteries, but reject disconnected placeholders."""
+        if not isinstance(reading, dict) or not reading:
+            raise NiuResponseError("Missing or empty battery compartment")
+        result = dict(reading)
+        connected = result.get("isConnected")
+        if connected in (False, 0, "0"):
+            raise NiuResponseError("Battery compartment is disconnected")
+        if "isConnected" in result and connected not in (True, 1, "1"):
+            raise NiuResponseError("Invalid battery connection state")
+        identity = result.get("bmsId")
+        has_identity = isinstance(identity, str) and bool(identity.strip())
+        if not has_identity and connected not in (True, 1, "1"):
+            raise NiuResponseError("Battery compartment has no identity or connection")
+        for field in ("batteryCharging", "gradeBattery"):
+            value = result.get(field)
+            if value is None and field == "gradeBattery":
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+                raise NiuResponseError(f"Invalid battery {field}")
+            try:
+                number = float(value)
+            except ValueError as err:
+                raise NiuResponseError(f"Invalid battery {field}") from err
+            if not math.isfinite(number) or not 0 <= number <= 100:
+                raise NiuResponseError(f"Battery {field} outside 0–100")
+            result[field] = int(number) if number.is_integer() else number
+        return result
 
     async def async_refresh_motor(self) -> dict[str, Any]:
         """Refresh motor, location, and last-ride data and return it."""
@@ -636,10 +720,7 @@ class NiuApi:
         try:
             return self.dataBat["data"]["batteries"]["compartmentB"][id_field]
         except (KeyError, TypeError):
-            try:
-                return self.dataMoto["data"]["batteries"]["compartmentB"][id_field]
-            except (KeyError, TypeError):
-                return None
+            return None
 
     def hasSecondBattery(self) -> bool:
         """Return whether NIU reported a second battery compartment."""

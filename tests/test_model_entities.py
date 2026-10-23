@@ -73,6 +73,10 @@ class FakeCoordinator:
         self.api = api
         self.metadata = types.SimpleNamespace(sn="TEST-SN", sensor_prefix="MQi")
         self.last_update_success = True
+        self.fresh = True
+
+    def is_group_fresh(self, group):
+        return self.fresh
 
 
 def load_entity_modules():

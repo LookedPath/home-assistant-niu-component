@@ -75,3 +75,16 @@ environment and wait for its required approval before executing.
 
 Tests use Home Assistant and HTTP client stand-ins; they do not contact NIU or replace testing in a running
 Home Assistant instance.
+
+### Battery data reliability
+
+Battery readings are validated separately for each compartment. Invalid or disconnected
+placeholder readings retain the last valid data; genuine connected batteries at 0% are
+accepted. Sensors and binary sensors become unavailable after 45 minutes without a
+successful refresh of their data source, and recover automatically on the next valid
+response. This measures API refresh freshness, not when the scooter last sent telemetry.
+
+Integration diagnostics expose refresh times, failure counts, error types and battery
+field types without including credentials, battery IDs, coordinates or response bodies.
+Logs include the reason for refresh failures and suppress identical repeats until the
+error changes or the endpoint recovers.

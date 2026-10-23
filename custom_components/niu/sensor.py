@@ -105,13 +105,20 @@ class NiuSensor(NiuCoordinatorEntity, SensorEntity):
     @property
     def available(self):
         """Return entity availability based on coordinator state."""
-        return self.coordinator.last_update_success or self._last_native_value is not None
+        return self.coordinator.is_group_fresh(self._sensor_grp)
 
     @property
     def native_value(self):
         """Return the current sensor value, preserving the last good state."""
         value = self._get_value()
-        if value is not None and not self._is_invalid_zero(value):
+        if (
+            value is not None
+            and not (
+                self._id_name == "centreCtrlBattery"
+                and value in (0, "0")
+                and self.coordinator.api.getDataMoto("isConnected") is None
+            )
+        ):
             self._last_native_value = value
 
         return self._last_native_value
@@ -168,21 +175,3 @@ class NiuSensor(NiuCoordinatorEntity, SensorEntity):
         if self._sensor_grp == SENSOR_TYPE_TPMS:
             return self.coordinator.api.getDataTpms(self._id_name)
         return None
-
-    def _is_invalid_zero(self, value):
-        if self._id_name not in {"batteryCharging", "gradeBattery", "centreCtrlBattery"}:
-            return False
-
-        if value != 0:
-            return False
-
-        if not self.coordinator.api.has_snapshot_data():
-            return True
-
-        if self._id_name == "centreCtrlBattery":
-            return self.coordinator.api.getDataMoto("isConnected") is None
-
-        if self._sensor_grp == SENSOR_TYPE_BAT2:
-            return self.coordinator.api.getDataBatB("bmsId") is None
-
-        return self.coordinator.api.getDataBat("bmsId") is None

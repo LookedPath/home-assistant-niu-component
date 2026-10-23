@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from datetime import UTC, datetime
 import logging
 from typing import Any
 
@@ -18,8 +19,11 @@ from .const import (
     IGNITION_CONFIRMATION_POLL_DELAYS,
     SENSOR_TYPE_BAT,
     SENSOR_TYPE_BAT2,
+    SENSOR_TYPE_DIST,
     SENSOR_TYPE_MOTO,
     SENSOR_TYPE_OVERALL,
+    SENSOR_TYPE_POS,
+    SENSOR_TYPE_TPMS,
     SENSOR_TYPE_TRACK,
     SENSOR_TYPES,
     UPDATE_INTERVAL,
@@ -30,6 +34,31 @@ _LOGGER = logging.getLogger(__name__)
 DEFAULT_RATE_LIMIT_BACKOFF = 300
 MIN_RATE_LIMIT_BACKOFF = 30
 MAX_RATE_LIMIT_BACKOFF = 3600
+STALE_AFTER_SECONDS = UPDATE_INTERVAL.total_seconds() * 3
+
+
+@dataclass
+class EndpointHealth:
+    """Refresh health without retaining response bodies or credentials."""
+
+    last_success: datetime | None = None
+    consecutive_failures: int = 0
+    error: str | None = None
+    error_type: str | None = None
+
+
+def sensor_endpoint(group: str) -> str:
+    """Map entity groups to the endpoint that supplies their data."""
+    return {
+        SENSOR_TYPE_BAT: "compartmentA",
+        SENSOR_TYPE_BAT2: "compartmentB",
+        SENSOR_TYPE_OVERALL: "overall",
+        SENSOR_TYPE_TRACK: "track",
+        SENSOR_TYPE_MOTO: "motor",
+        SENSOR_TYPE_DIST: "motor",
+        SENSOR_TYPE_POS: "motor",
+        SENSOR_TYPE_TPMS: "motor",
+    }[group]
 
 
 def required_sensor_groups(sensors_selected: list[str]) -> set[str]:
@@ -77,6 +106,9 @@ class NiuDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.metadata = metadata
         self.sensor_groups = frozenset(sensor_groups)
         self.last_endpoint_errors: dict[str, NiuApiError] = {}
+        self.endpoint_health: dict[str, EndpointHealth] = {}
+        self._freshness_handles: dict[str, asyncio.TimerHandle] = {}
+        entry.async_on_unload(self._cancel_freshness_timers)
         self._api_lock = asyncio.Lock()
         self._ignition_confirmation_task: asyncio.Task[None] | None = None
         self._ignition_state: bool | None = None
@@ -106,8 +138,10 @@ class NiuDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     try:
                         await fetcher()
                     except NiuAuthenticationError as err:
+                        self._record_endpoint_result(endpoint, err)
                         raise ConfigEntryAuthFailed(str(err)) from err
                     except NiuRateLimitError as err:
+                        self._record_endpoint_result(endpoint, err)
                         retry_after = err.retry_after or DEFAULT_RATE_LIMIT_BACKOFF
                         retry_after = max(
                             MIN_RATE_LIMIT_BACKOFF,
@@ -118,8 +152,19 @@ class NiuDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         ) from err
                     except NiuApiError as err:
                         errors[endpoint] = err
+                        self._record_endpoint_result(endpoint, err)
+                        if endpoint == "battery":
+                            for compartment in ("compartmentA", "compartmentB"):
+                                self._record_endpoint_result(compartment, err)
                     else:
                         succeeded += 1
+                        self._record_endpoint_result(endpoint, None)
+                        if endpoint == "battery":
+                            for compartment in self.api.refreshed_battery_compartments:
+                                self._record_endpoint_result(compartment, None)
+                            for compartment, err in self.api.battery_errors.items():
+                                errors[compartment] = err
+                                self._record_endpoint_result(compartment, err)
         finally:
             if self.api.has_unsaved_token():
                 await self.api.async_save_token()
@@ -128,15 +173,57 @@ class NiuDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if succeeded == 0:
             details = "; ".join(f"{name}: {err}" for name, err in errors.items())
             raise UpdateFailed(f"Unable to refresh NIU data ({details})")
-        if errors:
-            _LOGGER.warning(
-                "NIU partial update for %s; cached data retained for: %s",
-                self.metadata.sn,
-                ", ".join(sorted(errors)),
-            )
 
         self._accept_ignition_state(self.api.getDataMoto("isAccOn"))
         return self.api.snapshot()
+
+    def _record_endpoint_result(
+        self, endpoint: str, error: NiuApiError | None
+    ) -> None:
+        health = self.endpoint_health.setdefault(endpoint, EndpointHealth())
+        if error is None:
+            if health.error is not None:
+                _LOGGER.info("NIU %s refresh recovered", endpoint)
+            health.last_success = datetime.now(UTC)
+            health.consecutive_failures = 0
+            health.error = None
+            health.error_type = None
+            if handle := self._freshness_handles.pop(endpoint, None):
+                handle.cancel()
+            self._freshness_handles[endpoint] = asyncio.get_running_loop().call_later(
+                STALE_AFTER_SECONDS, self._expire_endpoint, endpoint
+            )
+            return
+        description = f"{type(error).__name__}: {error}"
+        if description != health.error:
+            _LOGGER.warning(
+                "NIU %s refresh failed; retaining cached data: %s",
+                endpoint,
+                description,
+            )
+        health.error_type = type(error).__name__
+        health.error = description
+        health.consecutive_failures += 1
+
+    def _expire_endpoint(self, endpoint: str) -> None:
+        """Notify entities even when repeated failures stop coordinator callbacks."""
+        self._freshness_handles.pop(endpoint, None)
+        self.async_update_listeners()
+
+    def _cancel_freshness_timers(self) -> None:
+        for handle in self._freshness_handles.values():
+            handle.cancel()
+        self._freshness_handles.clear()
+
+    def is_group_fresh(self, group: str) -> bool:
+        """Expire cached readings independently of other successful endpoints."""
+        health = self.endpoint_health.get(sensor_endpoint(group))
+        return bool(
+            health
+            and health.last_success is not None
+            and (datetime.now(UTC) - health.last_success).total_seconds()
+            < STALE_AFTER_SECONDS
+        )
 
     async def async_set_ignition(self, ignition: bool) -> bool:
         """Set ignition state and start a targeted confirmation job."""
@@ -233,6 +320,7 @@ class NiuDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     continue
 
                 snapshot = self.api.commit_motor_data(motor_data)
+                self._record_endpoint_result("motor", None)
                 self._accept_ignition_state(observed_state)
                 self.async_set_updated_data(snapshot)
                 _LOGGER.debug(
